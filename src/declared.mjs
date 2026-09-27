@@ -15,6 +15,8 @@
 // looser than that is a tolerance, not a supported format, and the unparsed list is where the
 // difference shows up.
 
+import { canonicalSection, isDraftTitle } from './headings.mjs';
+
 export const SECTION_KEYS = ['map', 'state', 'doors', 'bill', 'watch', 'blast'];
 
 // Checked in order, first match wins. The words are the ones people actually head these sections
@@ -23,9 +25,9 @@ const SECTION_PATTERNS = [
   ['map', /\bmap\b|\bpieces\b|hangs together|the shape|components?\b|architecture/i],
   ['state', /\bstate\b|where data|data live|storage|database/i],
   ['doors', /doors|keys|secrets?\b|access|auth|permission/i],
-  ['bill', /\bbill\b|\bcosts?\b|charges?\b|meter|pricing|price|spend/i],
+  ['bill', /\bbills?\b|\bcosts?\b|charges?\b|meter|pricing|price|spend|per use/i],
   ['watch', /2am|broke|breaks|alert|monitor|find out|observ|logging|logs\b|paging/i],
-  ['blast', /blast radius|10x|scale|scaling|ceiling|dependen/i],
+  ['blast', /blast radius|10x|scale|scaling|ceiling|dependen|per piece/i],
 ];
 
 const HEADING = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/;
@@ -81,22 +83,82 @@ function classify(heading) {
   return null;
 }
 
+// Which heading owns which key is decided over the WHOLE document before any line is assigned,
+// because the answer depends on what else the document contains. A first-pass, first-match-wins scan
+// is what let the draft's own H1 claim the map section out from under `## 1. The map`.
+//
+// Ranking, per key: a heading that names the key exactly beats one that merely mentions a keyword; a
+// `##` or deeper beats a top-level `#`, since a level-1 heading is usually the document's title; and
+// among equals the earliest wins. A level-1 heading still takes a key nothing else claims, because
+// `# How it hangs together` is somebody's entire map.
+function chooseSections(headings) {
+  const chosen = Object.fromEntries(SECTION_KEYS.map((key) => [key, null]));
+
+  for (const key of SECTION_KEYS) {
+    const candidates = headings
+      .filter((entry) => entry.canonical === key || (entry.canonical === null && entry.keyword === key))
+      .sort(
+        (a, b) =>
+          Number(b.canonical === key) - Number(a.canonical === key) ||
+          Number(b.level >= 2) - Number(a.level >= 2) ||
+          a.line - b.line,
+      );
+
+    if (candidates.length > 0) chosen[key] = candidates[0];
+  }
+
+  return chosen;
+}
+
 function splitSections(text) {
   const lines = text.split('\n');
+
+  // Pass 1: every heading, with its level, the key it names exactly, and the key it merely suggests.
+  const headings = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = HEADING.exec(lines[index]);
+    if (match === null) continue;
+
+    const heading = match[1];
+    // derive's own title. It is a title, not a section, and saying so here beats inferring it from
+    // the heading level.
+    if (isDraftTitle(heading)) continue;
+
+    headings.push({
+      heading,
+      line: index + 1,
+      level: /^\s{0,3}(#+)/.exec(lines[index])[1].length,
+      canonical: canonicalSection(heading),
+      keyword: classify(heading),
+    });
+  }
+
+  // Pass 2: resolve the contest for each key.
+  const chosen = chooseSections(headings);
+  const ownerByLine = new Map();
   const sections = Object.fromEntries(SECTION_KEYS.map((key) => [key, null]));
+
+  for (const key of SECTION_KEYS) {
+    if (chosen[key] === null) continue;
+    sections[key] = { key, heading: chosen[key].heading, line: chosen[key].line, lines: [] };
+    ownerByLine.set(chosen[key].line, sections[key]);
+  }
+
+  // Pass 3: hand every body line to whichever section it falls under. Any heading ends the previous
+  // section, owned or not, so prose under an unrecognised heading belongs to nobody.
+  const headingLines = new Set(headings.map((entry) => entry.line));
   let current = null;
 
   for (let index = 0; index < lines.length; index += 1) {
-    const heading = HEADING.exec(lines[index]);
+    const line = index + 1;
 
-    if (heading !== null) {
-      const key = classify(heading[1]);
-      current = key === null || sections[key] !== null ? null : { key, heading: heading[1], line: index + 1, lines: [] };
-      if (current !== null) sections[key] = current;
+    if (HEADING.test(lines[index])) {
+      current = ownerByLine.get(line) ?? null;
+      void headingLines;
       continue;
     }
 
-    if (current !== null) current.lines.push({ n: index + 1, text: lines[index] });
+    if (current !== null) current.lines.push({ n: line, text: lines[index] });
   }
 
   return sections;

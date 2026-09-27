@@ -185,6 +185,15 @@ what makes the dogfood runs read-only by construction.
 | Section 2 of the report is "Edges present the map omits", not "forbids or omits" | Phase 1 exports no boundary rules, so nothing in the repo can express a prohibition. §3G states the closed-set reading that replaces it |
 | `--now` exists | Required for deterministic doc examples and a byte-comparing README test. Not in the brief, additive, documented |
 
+### 4A. Contract decisions made in fix wave 1 (2026-09-27, after an independent ship-check BLOCKed the lane)
+
+| # | Decision | Why |
+|---|---|---|
+| RT | **The round trip is the contract.** `derive` → save the draft unedited as `system.md` → `scan` → `reconcile` on the unchanged repo is exit 0, zero findings, and `test/round-trip.test.mjs` holds it on four repos | It failed on this repo's own fixture with exit 1 and 10 false findings. derive was only ever tested against its own output and the parser only against hand-written documents; nothing exercised the join |
+| RT-1 | Section headings live in **one** constant, `src/headings.mjs`, read by both `derive` and `declared` | The two ends disagreed about `## 4. What bills per use` and about whether the draft's H1 was a section. A shared table plus a test over it makes that class of bug red rather than silent |
+| RT-2 | A heading that names a section **exactly** beats one that merely mentions a keyword, and a `##` beats a `#`, decided over the whole document before any line is assigned | First-match-wins let the draft's title claim the map section out from under the real map heading |
+| RT-3 | **Section 5's vocabulary is whatever section 5 of a derived draft can contain**, schedules included | Otherwise the tool reports its own sentences back as findings |
+
 ## 5. The gate set
 
 Per area, run before any claim that this repo is green.
