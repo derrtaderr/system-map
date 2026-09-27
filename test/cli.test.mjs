@@ -210,6 +210,23 @@ test('derive refuses to write to a path called system.md, whatever the flags say
   });
 });
 
+test('a derived draft carries no absolute path, even when the CLI was given one', () => {
+  // Found by dogfooding: `derived_from` echoed the argv path, so a draft derived with an absolute
+  // path carried a home directory into a file meant to be committed. That is the guard's own
+  // HOME_PATH rule, broken in the tool's output rather than in its tree.
+  withSandbox({}, (out) => {
+    withSandbox(A_REPO, (repo) => {
+      const result = run(['derive', repo, '--out', 'draft.md', '--now', NOW], { cwd: out });
+      assert.equal(result.code, 0, result.stderr);
+
+      const draft = readFileSync(join(out, 'draft.md'), 'utf8');
+      assert.ok(!draft.includes(repo), 'the absolute path does not appear');
+      assert.ok(!/\/Users\/|\/home\/|\/var\/folders\//.test(draft), draft.split('\n').slice(0, 10).join('\n'));
+      assert.match(draft, /derived_from: [^/\n]+\n/, 'and it still names the repo by something');
+    });
+  });
+});
+
 // --- reconcile ------------------------------------------------------------------------------------------
 
 test('reconcile writes a dated report and exits 0 on a clean repo', () => {
