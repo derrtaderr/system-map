@@ -53,6 +53,26 @@ A manifest that will not parse is **BLOCKING**. Every other extractor can miss s
 leave a usable map; a dependency list that silently came back empty makes the bill answer and the
 state answer both look clean for the wrong reason.
 
+### Local file writes, and shelling out
+
+A write call in a module that is part of the system, whose path expression is not scratch, is where state
+lives (question 2). Node: `writeFileSync`, `appendFileSync`, `writeFile`, `appendFile`,
+`createWriteStream`. Python: `open(p, 'w')`, `Path(p).write_text`/`write_bytes` (which cite their
+**receiver**, because the argument is the content), `sqlite3.connect`, and pandas' `to_csv`/`to_json`/
+`to_parquet` (which cite their **argument**, because the receiver is the data).
+
+`mkdirSync` is not a write: a directory is not state, the file written into it is, and that write is
+already a row. `json.dump(obj, handle)` is not a write: the path is not on that line, and the
+`open(…, 'w')` that produced the handle is the row.
+
+**One row per module.** A module that writes in six branches is one place state lives, and the extra
+writes are counted rather than listed. Measured on three real repos this gives 1, 6 and 5 rows where a
+row per call gave 4, 17 and 8.
+
+`execFileSync|execFile|spawnSync|spawn|execSync|exec` with a literal first argument, and Python's
+`subprocess.run|call|check_call|check_output|Popen`, are external systems: an edge in section 1 and a row
+in section 4, because a process boundary is a boundary and appears in no dependency manifest.
+
 ### Environment variables
 
 `process.env.X`, `process.env['X']`, `const { A, B } = process.env`, `os.environ['X']`,
@@ -148,13 +168,15 @@ Named here so a stranger is not surprised, and so a gap is never mistaken for an
 - **Queue edges.** A producer and a consumer that meet in Redis share no import. The queue client is
   reported; the edge cannot be.
 - **Any language that is not Node or Python.** A Go service in the same monorepo is invisible.
-- **An environment injected as a parameter.** A module written as `function f({ env = process.env })`
-  and read as `env.MY_KEY` hides every one of its variables from the `process.env.X` rule. Found by
-  dogfooding: two repos scanned during this lane do exactly this, and the scan reported one
-  environment variable between them where there are several. Widening the rule to any `env.X` would
-  match every object somebody happened to call `env`, which trades a quiet miss for a noisy wrong
-  answer, so the miss is named here instead. When a draft's question 3 looks emptier than you expect,
-  this is the first thing to check.
+- **An injected WRITE function.** `appendClaim(path, claim, { write = appendFileSync })` performs its
+  write through `write(…)`, and a rule keyed on the function's name cannot see it. Widening to any
+  `write(` would match `stream.write`, `res.write` and every other unrelated writer, so the miss is named
+  here. Same shape as the injected-env case, which IS now handled — the difference is that the env rule
+  can key on SCREAMING_SNAKE and this one has nothing to key on.
+- **An environment injected as a parameter is now read** (`env.MY_KEY`, fix wave 1, SPEC §4A row D3),
+  and this entry used to say it could not be. The reason given was noise; measured across three real
+  repos, the feared false positive returned zero hits. What was missing was the measurement, not the
+  rule.
 - **Test files are excluded from the system by default** (fix wave 1, SPEC §4A row D4). They are
   counted and named in section 1, so "excluded" never reads as "unread", but they are not pieces, have
   no blast radius, and a variable or route that appears only in a test is not reported.

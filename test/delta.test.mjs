@@ -63,6 +63,8 @@ test('the kinds are the documented set, so a caller can loop without knowing the
     'observability',
     'routes',
     'schedules',
+    'shells',
+    'writes',
   ]);
 });
 
