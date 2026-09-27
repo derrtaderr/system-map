@@ -6,8 +6,6 @@
 // part of the scan: a timestamp inside the scan would make every diff dirty and the baseline
 // worthless as a reference point.
 
-import { basename } from 'node:path';
-
 import { readRepo } from './walk.mjs';
 import { resolveEdges } from './resolve.mjs';
 import { languageOf } from './extract/text.mjs';
@@ -78,7 +76,7 @@ export function scanRepo(root) {
       path: '.',
       line: 1,
       cite: '.',
-      detail: `no source file was found under ${basename(root)}, so nothing here can be judged against a declared design`,
+      detail: 'no source file was found under the scanned path, so nothing here can be judged against a declared design',
     });
   }
 
