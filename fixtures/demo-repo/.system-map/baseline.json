@@ -1,0 +1,457 @@
+{
+  "schema": "system-map/baseline@1",
+  "modules": [
+    {
+      "path": "notify/slack.mjs",
+      "language": "node",
+      "cite": "notify/slack.mjs:1"
+    },
+    {
+      "path": "src/api.mjs",
+      "language": "node",
+      "cite": "src/api.mjs:1"
+    },
+    {
+      "path": "store/db.mjs",
+      "language": "node",
+      "cite": "store/db.mjs:1"
+    },
+    {
+      "path": "worker/rules.py",
+      "language": "python",
+      "cite": "worker/rules.py:1"
+    },
+    {
+      "path": "worker/run.py",
+      "language": "python",
+      "cite": "worker/run.py:1"
+    }
+  ],
+  "edges": [
+    {
+      "from": "src/api.mjs",
+      "specifier": "stripe",
+      "kind": "import",
+      "line": 2,
+      "cite": "src/api.mjs:2",
+      "to": null,
+      "external": true,
+      "builtin": false
+    },
+    {
+      "from": "src/api.mjs",
+      "specifier": "pino",
+      "kind": "import",
+      "line": 3,
+      "cite": "src/api.mjs:3",
+      "to": null,
+      "external": true,
+      "builtin": false
+    },
+    {
+      "from": "src/api.mjs",
+      "specifier": "../store/db.mjs",
+      "kind": "import",
+      "line": 5,
+      "cite": "src/api.mjs:5",
+      "to": "store/db.mjs",
+      "external": false,
+      "builtin": false
+    },
+    {
+      "from": "src/api.mjs",
+      "specifier": "../notify/slack.mjs",
+      "kind": "import",
+      "line": 6,
+      "cite": "src/api.mjs:6",
+      "to": "notify/slack.mjs",
+      "external": false,
+      "builtin": false
+    },
+    {
+      "from": "store/db.mjs",
+      "specifier": "@supabase/supabase-js",
+      "kind": "import",
+      "line": 2,
+      "cite": "store/db.mjs:2",
+      "to": null,
+      "external": true,
+      "builtin": false
+    },
+    {
+      "from": "worker/rules.py",
+      "specifier": "os",
+      "kind": "python-import",
+      "line": 3,
+      "cite": "worker/rules.py:3",
+      "to": null,
+      "external": true,
+      "builtin": true
+    },
+    {
+      "from": "worker/run.py",
+      "specifier": "logging",
+      "kind": "python-import",
+      "line": 3,
+      "cite": "worker/run.py:3",
+      "to": null,
+      "external": true,
+      "builtin": true
+    },
+    {
+      "from": "worker/run.py",
+      "specifier": "os",
+      "kind": "python-import",
+      "line": 4,
+      "cite": "worker/run.py:4",
+      "to": null,
+      "external": true,
+      "builtin": true
+    },
+    {
+      "from": "worker/run.py",
+      "specifier": "requests",
+      "kind": "python-import",
+      "line": 6,
+      "cite": "worker/run.py:6",
+      "to": null,
+      "external": true,
+      "builtin": false
+    },
+    {
+      "from": "worker/run.py",
+      "specifier": "celery.schedules",
+      "kind": "python-import",
+      "line": 7,
+      "cite": "worker/run.py:7",
+      "to": null,
+      "external": true,
+      "builtin": false
+    },
+    {
+      "from": "worker/run.py",
+      "specifier": ".rules",
+      "kind": "python-import",
+      "line": 9,
+      "cite": "worker/run.py:9",
+      "to": "worker/rules.py",
+      "external": false,
+      "builtin": false
+    }
+  ],
+  "manifests": [
+    {
+      "path": "package.json",
+      "kind": "package.json",
+      "deps": [
+        "@supabase/supabase-js",
+        "openai",
+        "pino",
+        "stripe"
+      ],
+      "devDeps": [],
+      "scripts": [
+        "start",
+        "worker"
+      ],
+      "declaresNothing": false,
+      "cite": "package.json:1"
+    }
+  ],
+  "env": [
+    {
+      "name": "PORT",
+      "how": ".env.example",
+      "line": 2,
+      "path": ".env.example",
+      "secretish": false,
+      "cite": ".env.example:2",
+      "alsoAt": []
+    },
+    {
+      "name": "SK_EXAMPLE",
+      "how": ".env.example",
+      "line": 3,
+      "path": ".env.example",
+      "secretish": true,
+      "cite": ".env.example:3",
+      "alsoAt": [
+        "src/api.mjs:9"
+      ]
+    },
+    {
+      "name": "KITELINE_WEBHOOK_SECRET",
+      "how": ".env.example",
+      "line": 4,
+      "path": ".env.example",
+      "secretish": true,
+      "cite": ".env.example:4",
+      "alsoAt": [
+        "src/api.mjs:28"
+      ]
+    },
+    {
+      "name": "SUPABASE_URL",
+      "how": ".env.example",
+      "line": 5,
+      "path": ".env.example",
+      "secretish": false,
+      "cite": ".env.example:5",
+      "alsoAt": [
+        "store/db.mjs:4"
+      ]
+    },
+    {
+      "name": "SUPABASE_SERVICE_KEY",
+      "how": ".env.example",
+      "line": 6,
+      "path": ".env.example",
+      "secretish": true,
+      "cite": ".env.example:6",
+      "alsoAt": [
+        "store/db.mjs:4"
+      ]
+    },
+    {
+      "name": "WORKER_TOKEN",
+      "how": ".env.example",
+      "line": 7,
+      "path": ".env.example",
+      "secretish": true,
+      "cite": ".env.example:7",
+      "alsoAt": [
+        "worker/run.py:11"
+      ]
+    },
+    {
+      "name": "LOG_LEVEL",
+      "how": ".env.example",
+      "line": 8,
+      "path": ".env.example",
+      "secretish": false,
+      "cite": ".env.example:8",
+      "alsoAt": []
+    },
+    {
+      "name": "SCORER_NAME",
+      "how": "process.env",
+      "line": 20,
+      "path": "src/api.mjs",
+      "secretish": false,
+      "cite": "src/api.mjs:20",
+      "alsoAt": []
+    },
+    {
+      "name": "SCORE_THRESHOLD",
+      "how": "os.environ.get",
+      "line": 5,
+      "path": "worker/rules.py",
+      "secretish": false,
+      "cite": "worker/rules.py:5",
+      "alsoAt": []
+    }
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "framework": "app.get",
+      "line": 15,
+      "from": "src/api.mjs",
+      "cite": "src/api.mjs:15"
+    },
+    {
+      "method": "POST",
+      "path": "/lead",
+      "framework": "app.post",
+      "line": 17,
+      "from": "src/api.mjs",
+      "cite": "src/api.mjs:17"
+    },
+    {
+      "method": "POST",
+      "path": "/charge",
+      "framework": "app.post",
+      "line": 27,
+      "from": "src/api.mjs",
+      "cite": "src/api.mjs:27"
+    }
+  ],
+  "clients": [
+    {
+      "name": "@supabase/supabase-js",
+      "categories": [
+        "state"
+      ],
+      "note": "the database, and the row-level rules live in it",
+      "cites": [
+        "store/db.mjs:2"
+      ],
+      "cite": "store/db.mjs:2"
+    },
+    {
+      "name": "celery",
+      "categories": [
+        "queue"
+      ],
+      "note": "work handed to a worker through a broker",
+      "cites": [
+        "worker/run.py:7"
+      ],
+      "cite": "worker/run.py:7"
+    },
+    {
+      "name": "pino",
+      "categories": [
+        "observability"
+      ],
+      "note": "structured logs, the recording half of the 2am question",
+      "cites": [
+        "src/api.mjs:3"
+      ],
+      "cite": "src/api.mjs:3"
+    },
+    {
+      "name": "stripe",
+      "categories": [
+        "metered"
+      ],
+      "note": "charges per API call and settles real money",
+      "cites": [
+        "src/api.mjs:2"
+      ],
+      "cite": "src/api.mjs:2"
+    }
+  ],
+  "hosts": [
+    {
+      "host": "hooks.slack.com",
+      "via": "fetch",
+      "line": 3,
+      "path": "notify/slack.mjs",
+      "cite": "notify/slack.mjs:3"
+    },
+    {
+      "host": "api.example.com",
+      "via": "requests",
+      "line": 18,
+      "path": "worker/run.py",
+      "cite": "worker/run.py:18"
+    }
+  ],
+  "schedules": [
+    {
+      "kind": "github-actions",
+      "detail": "0 9 * * *",
+      "line": 4,
+      "path": ".github/workflows/nightly.yml",
+      "cite": ".github/workflows/nightly.yml:4"
+    },
+    {
+      "kind": "setInterval",
+      "detail": "60000",
+      "line": 38,
+      "path": "src/api.mjs",
+      "cite": "src/api.mjs:38"
+    },
+    {
+      "kind": "crontab",
+      "detail": "hour=9, minute=0",
+      "line": 14,
+      "path": "worker/run.py",
+      "cite": "worker/run.py:14"
+    }
+  ],
+  "observability": [
+    {
+      "kind": "pushes",
+      "name": "hooks.slack.com",
+      "line": 3,
+      "path": "notify/slack.mjs",
+      "cite": "notify/slack.mjs:3"
+    },
+    {
+      "kind": "pushes",
+      "name": "events.pagerduty.com",
+      "path": "notify/slack.mjs",
+      "line": 9,
+      "cite": "notify/slack.mjs:9"
+    },
+    {
+      "kind": "records",
+      "name": "logger.error",
+      "line": 32,
+      "path": "src/api.mjs",
+      "cite": "src/api.mjs:32"
+    },
+    {
+      "kind": "records",
+      "name": "console.error",
+      "line": 33,
+      "path": "src/api.mjs",
+      "cite": "src/api.mjs:33"
+    },
+    {
+      "kind": "records",
+      "name": "console.error",
+      "line": 8,
+      "path": "store/db.mjs",
+      "cite": "store/db.mjs:8"
+    },
+    {
+      "kind": "records",
+      "name": "logging.error",
+      "line": 20,
+      "path": "worker/run.py",
+      "cite": "worker/run.py:20"
+    }
+  ],
+  "authChecks": [
+    {
+      "name": "requireAuth",
+      "line": 17,
+      "path": "src/api.mjs",
+      "cite": "src/api.mjs:17",
+      "alsoAt": []
+    },
+    {
+      "name": "request.headers.authorization",
+      "line": 18,
+      "path": "src/api.mjs",
+      "cite": "src/api.mjs:18",
+      "alsoAt": []
+    },
+    {
+      "name": "\"authorization\":",
+      "line": 18,
+      "path": "worker/run.py",
+      "cite": "worker/run.py:18",
+      "alsoAt": []
+    }
+  ],
+  "gaps": [
+    {
+      "tier": "NOTED",
+      "code": "DYNAMIC_SPECIFIER",
+      "path": "src/api.mjs",
+      "line": 13,
+      "detail": "a module is loaded from a computed specifier, so the edge it creates cannot be read from the text",
+      "cite": "src/api.mjs:13"
+    }
+  ],
+  "counts": {
+    "modules": 5,
+    "edges": 11,
+    "manifests": 1,
+    "env": 9,
+    "routes": 3,
+    "clients": 4,
+    "hosts": 2,
+    "schedules": 3,
+    "observability": 6,
+    "authChecks": 3,
+    "gaps": 1,
+    "blockingGaps": 0
+  },
+  "generated_at": "2026-09-27T09:00:00.000Z"
+}

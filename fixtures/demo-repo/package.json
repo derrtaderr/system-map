@@ -1,0 +1,17 @@
+{
+  "name": "kiteline",
+  "version": "0.3.0",
+  "private": true,
+  "description": "An invented lead-routing service, used only as a fixture.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/api.mjs",
+    "worker": "python worker/run.py"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "openai": "^4.28.0",
+    "pino": "^8.17.0",
+    "stripe": "^14.11.0"
+  }
+}

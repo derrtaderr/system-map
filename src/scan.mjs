@@ -22,6 +22,24 @@ export const BASELINE_SCHEMA = 'system-map/baseline@1';
 
 const byCite = (a, b) => String(a.cite).localeCompare(String(b.cite));
 
+// Each extractor dedupes within one file, which is not enough for a variable. A key read in the
+// .env.example and in three modules is ONE key, and listing it four times makes a reader count four
+// secrets where there is one. First citation wins; the rest travel as `alsoAt` so nothing is lost.
+function dedupeByName(entries) {
+  const first = new Map();
+
+  for (const entry of entries.sort(byCite)) {
+    const existing = first.get(entry.name);
+    if (existing === undefined) {
+      first.set(entry.name, { ...entry, alsoAt: [] });
+      continue;
+    }
+    existing.alsoAt.push(entry.cite);
+  }
+
+  return [...first.values()].sort(byCite);
+}
+
 export function scanRepo(root) {
   const { files, contents, gaps: readGaps } = readRepo(root);
   const fileSet = new Set(files);
@@ -41,7 +59,7 @@ export function scanRepo(root) {
     const language = languageOf(path);
     // A module is a code file, whether or not we could open it. The file existing is a fact about
     // the repo; failing to read it is a separate, already-reported gap.
-    if (language !== null) modules.push({ path, language });
+    if (language !== null) modules.push({ path, language, cite: `${path}:1` });
 
     const text = contents.get(path);
     if (text === undefined) continue;
@@ -87,13 +105,13 @@ export function scanRepo(root) {
     modules,
     edges: resolved.edges.sort((a, b) => byCite(a, b) || String(a.specifier).localeCompare(String(b.specifier))),
     manifests: manifests.sort((a, b) => a.path.localeCompare(b.path)),
-    env: env.sort(byCite),
+    env: dedupeByName(env),
     routes: routes.sort(byCite),
     clients,
     hosts: hosts.sort(byCite),
     schedules: schedules.sort(byCite),
     observability: observability.sort(byCite),
-    authChecks: authChecks.sort(byCite),
+    authChecks: dedupeByName(authChecks),
     gaps: gaps.sort((a, b) => a.code.localeCompare(b.code) || String(a.cite).localeCompare(String(b.cite))),
   };
 
