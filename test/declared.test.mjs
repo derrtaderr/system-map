@@ -107,8 +107,10 @@ test('a piece named only by a backticked path is still a piece', () => {
 });
 
 test('a piece named in plain prose, with an em-dash description, is still a piece', () => {
+  // The article is dropped as of fix wave 1 (I7): "The scoring worker" and `worker` name the same thing,
+  // and keeping the article meant a hand-written map matched no piece in any repo.
   const text = ['## The map', '', '- The scoring worker — ranks the queue.', ''].join('\n');
-  assert.deepEqual(parseDeclared(text).pieces.map((piece) => piece.name), ['The scoring worker']);
+  assert.deepEqual(parseDeclared(text).pieces.map((piece) => piece.name), ['scoring worker']);
 });
 
 test('a bullet that is only an edge is not also a piece', () => {
@@ -135,7 +137,7 @@ test('a verb edge is read, for the verbs a person actually writes', () => {
   const text = ['## The map', '', '- The API calls Stripe', '- The worker talks to Postgres', '- The worker writes to the ledger', ''].join('\n');
   assert.deepEqual(
     parseDeclared(text).edges.map((edge) => `${edge.from}=>${edge.to}`),
-    ['The API=>Stripe', 'The worker=>Postgres', 'The worker=>the ledger'],
+    ['API=>Stripe', 'worker=>Postgres', 'worker=>ledger'],
   );
 });
 
@@ -193,4 +195,52 @@ test('a declared document that parsed something says so, so the caller can tell 
 
 test('parsing is deterministic', () => {
   assert.deepEqual(parseDeclared(SIX_SECTIONS), parseDeclared(SIX_SECTIONS));
+});
+
+// --- I7: a hand-written map is prose, and prose has articles and descriptions ------------------------
+//
+// A ship-check ran the tool against a map somebody wrote by hand and got 4 false findings out of 11:
+// two pieces named by description ("The nightly worker, in Python") and two edges whose endpoints carry
+// articles ("The API calls the store"). Every one of those is a document that is RIGHT and a tool that
+// cannot read it, which is the failure mode that gets a tool uninstalled.
+
+test('a leading article is not part of a piece name', () => {
+  const text = ['## The map', '', '- The nightly worker, in Python.', '- the billing module charges cards', ''].join('\n');
+  assert.deepEqual(parseDeclared(text).pieces.map((piece) => piece.name), ['nightly worker', 'billing module charges cards']);
+});
+
+test('a piece name stops at the first clause break, so a description is not a name', () => {
+  const text = ['## The map', '', '- The nightly worker, in Python and quite slow.', ''].join('\n');
+  assert.deepEqual(parseDeclared(text).pieces.map((piece) => piece.name), ['nightly worker']);
+});
+
+test('an edge endpoint drops its article at both ends', () => {
+  const text = ['## The map', '', '- The API calls the store.', '- The worker talks to the notifier.', ''].join('\n');
+  assert.deepEqual(
+    parseDeclared(text).edges.map((edge) => `${edge.from}=>${edge.to}`),
+    ['API=>store', 'worker=>notifier'],
+  );
+});
+
+test('every documented edge verb is read', () => {
+  const lines = [
+    '- The api calls the store',
+    '- The api reads the store',
+    '- The api writes the store',
+    '- The api imports the store',
+    '- The api depends on the store',
+    '- The api uses the store',
+    '- The api → the store',
+    '- The api -> the store',
+  ];
+  for (const line of lines) {
+    const declared = parseDeclared(['## The map', '', line, ''].join('\n'));
+    assert.deepEqual(declared.edges.map((edge) => `${edge.from}=>${edge.to}`), ['api=>store'], line);
+  }
+});
+
+test('a piece named only by a sentence with a path still keeps the path', () => {
+  const text = ['## The map', '', '- The front door is the API. It lives in `src/`.', ''].join('\n');
+  const [piece] = parseDeclared(text).pieces;
+  assert.deepEqual(piece.paths, ['src/']);
 });

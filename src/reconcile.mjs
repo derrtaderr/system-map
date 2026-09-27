@@ -23,6 +23,61 @@ function normalise(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// A crude stem, so `notifier` and `notify` are one word, and so are `worker`/`work` and
+// `billing`/`bill`. docs/SPEC.md §4A row I7. It strips ONE trailing form and only when at least four
+// characters remain, which is what keeps `api` and `src` intact and keeps `cards` from becoming `card`
+// and matching nothing by accident.
+const SUFFIXES = ['ier', 'ers', 'ing', 'ies', 'er', 'or', 'es', 's', 'y'];
+
+export function stemWord(value) {
+  const base = normalise(value);
+  for (const suffix of SUFFIXES) {
+    if (base.length - suffix.length >= 4 && base.endsWith(suffix)) return base.slice(0, -suffix.length);
+  }
+  return base;
+}
+
+// The words a declared name offers up as candidates for a piece. "billing module charges cards" offers
+// four, and a directory called `billing` answers to the first. Stopwords are the nouns people use to say
+// "this is a component", which match nothing and would match everything if they were allowed to try.
+const STOPWORDS = new Set([
+  'module', 'modules', 'service', 'services', 'layer', 'layers', 'component', 'components', 'piece',
+  'pieces', 'part', 'parts', 'system', 'systems', 'app', 'code', 'side', 'thing', 'things', 'front',
+  'back', 'door', 'doors', 'nightly', 'daily', 'hourly', 'main', 'core', 'simple', 'small', 'big',
+]);
+
+// A piece name is a short noun phrase. Beyond the first two words you are reading a SENTENCE, and
+// letting every word of a sentence offer itself as a piece name is how "The billing module charges
+// cards" claimed to name a `cards/` directory and a `charges/` directory it has nothing to do with.
+//
+// Two words is enough for every shape that matters: "nightly worker" and "scoring worker" both offer
+// `worker`, "billing module" offers `billing`, and "billing module charges cards" offers only `billing`
+// because `charges` and `cards` are the third and fourth words.
+const NAME_WORDS_CONSIDERED = 2;
+
+function candidateTokens(name) {
+  const whole = normalise(name);
+  const words = String(name)
+    .split(/[^A-Za-z0-9]+/)
+    .filter((word) => word !== '')
+    .slice(0, NAME_WORDS_CONSIDERED)
+    .filter((word) => !STOPWORDS.has(word.toLowerCase()));
+
+  return [...new Set([whole, ...words.map((word) => normalise(word))])].filter((token) => token.length >= 3);
+}
+
+// Does a declared name answer to a code piece? Exact first, then one stem apart.
+function namesTheSameThing(declaredName, codePiece) {
+  const target = normalise(codePiece);
+  const targetStem = stemWord(codePiece);
+
+  for (const token of candidateTokens(declaredName)) {
+    if (token === target) return true;
+    if (stemWord(token) === targetStem && targetStem.length >= 4) return true;
+  }
+  return false;
+}
+
 function stem(modulePath) {
   const base = modulePath.slice(modulePath.lastIndexOf('/') + 1);
   const dot = base.lastIndexOf('.');
@@ -54,7 +109,11 @@ function matchPieces(declaredPieces, modules, pieceOf) {
         declaredRoots.has(piece) ||
         normalise(piece) === wanted ||
         normalise(piece) === declaredAsPiece ||
-        paths.some((path) => normalise(stem(path)) === wanted);
+        paths.some((path) => normalise(stem(path)) === wanted) ||
+        // A prose name. "The nightly worker, in Python" answers to `worker`, and so does any module
+        // inside the piece whose own name it names.
+        namesTheSameThing(declared.name, piece) ||
+        paths.some((path) => namesTheSameThing(declared.name, stem(path)));
 
       if (!matches) continue;
 
@@ -83,12 +142,29 @@ function unnamedPieces(codePieces, namedBy) {
   return findings;
 }
 
-function undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf) {
-  // The declared edge set, as pairs of CODE pieces.
+function undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf, codeMembers) {
+  // The declared edge set, as pairs of CODE pieces. An endpoint resolves through the declared piece it
+  // names when there is one, and otherwise directly against the code pieces, tolerantly — a map that
+  // says "The API calls the store" never spells `src` or `store` as a piece heading, and demanding that
+  // it does is how four false findings landed against a document that was right.
+  const codePieces = [...namedBy.keys()];
+  const endpointToPieces = (endpoint) => {
+    const viaDeclared = declaredToCode.get(endpoint);
+    if (viaDeclared !== undefined && viaDeclared.size > 0) return [...viaDeclared];
+
+    const direct = codePieces.filter((piece) => namesTheSameThing(endpoint, piece));
+    if (direct.length > 0) return direct;
+
+    // The endpoint may name a MODULE inside a piece rather than the piece.
+    return codePieces.filter((piece) =>
+      (codeMembers.get(piece) ?? []).some((path) => namesTheSameThing(endpoint, stem(path))),
+    );
+  };
+
   const allowed = new Set();
   for (const edge of declared.edges) {
-    for (const from of declaredToCode.get(edge.from) ?? []) {
-      for (const to of declaredToCode.get(edge.to) ?? []) allowed.add(JSON.stringify([from, to]));
+    for (const from of endpointToPieces(edge.from)) {
+      for (const to of endpointToPieces(edge.to)) allowed.add(JSON.stringify([from, to]));
     }
   }
 
@@ -287,7 +363,7 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
 
   const sections = {
     unnamedPieces: declaredUsable ? unnamedPieces(codePieces, namedBy) : [],
-    undeclaredEdges: declaredUsable ? undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf) : [],
+    undeclaredEdges: declaredUsable ? undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf, codePieces) : [],
     undeclaredEnv: declaredUsable ? undeclaredEnv(scan, declared) : [],
     unpricedClients: declaredUsable ? unpricedClients(scan, declared) : [],
     vanishedSurfaces: declaredUsable ? vanishedSurfaces(scan, declared, delta, systemPath) : [],

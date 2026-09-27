@@ -248,6 +248,46 @@ export function deriveSections(scan) {
   return [theMap(scan), whereStateLives(scan), doorsAndKeys(scan), whatBills(scan), howYouFindOut(scan), blastRadius(scan)];
 }
 
+// The band metrics.md declares. Below the floor the tool is probably inventing; above the ceiling the
+// extractors are too thin to be useful on this repo. Reading your own instrument is the point of having
+// one, and the first PR reported the raw counts and never applied the threshold.
+export const UNKNOWN_FLOOR = 10;
+export const UNKNOWN_CEILING = 40;
+
+export function unknownRatio(draft) {
+  const answers = draft
+    .split(`\n## ${GAP_HEADING}`)[0]
+    .split('\n')
+    .filter((line) => line.startsWith('- '));
+  const unknown = answers.filter((line) => line.startsWith('- Unknown:')).length;
+  const percent = answers.length === 0 ? 0 : Math.round((unknown / answers.length) * 100);
+
+  return {
+    answers: answers.length,
+    unknown,
+    percent,
+    verdict: percent > UNKNOWN_CEILING ? 'too-thin' : percent < UNKNOWN_FLOOR ? 'suspiciously-confident' : 'inside-the-band',
+  };
+}
+
+export function unknownRatioLines(ratio) {
+  const lines = [`${ratio.unknown} of ${ratio.answers} answers are Unknown (${ratio.percent}%).`];
+
+  if (ratio.verdict === 'too-thin') {
+    lines.push(
+      `That is above the ${UNKNOWN_CEILING}% ceiling in .vibecodepm/metrics.md, which reads as too thin to be useful:`,
+      'the scan found little enough that most of this page is what it could not see rather than what it read.',
+    );
+  } else if (ratio.verdict === 'suspiciously-confident') {
+    lines.push(
+      `That is below the ${UNKNOWN_FLOOR}% floor in .vibecodepm/metrics.md. A page with almost no Unknowns is`,
+      'either a very small system or a tool that is guessing; check the citations before trusting it.',
+    );
+  }
+
+  return lines;
+}
+
 export function deriveDraft(scan, { now, repoName }) {
   const sections = deriveSections(scan);
   const blocking = (scan.gaps ?? []).filter((gap) => gap.tier === 'BLOCKING');
@@ -295,5 +335,9 @@ export function deriveDraft(scan, { now, repoName }) {
   }
   out.push('');
 
-  return out.join('\n');
+  // The footer reads the page it is part of, so the number can never disagree with the lines above it.
+  const draft = out.join('\n');
+  const ratio = unknownRatio(draft);
+
+  return [draft, '---', '', ...unknownRatioLines(ratio), ''].join('\n');
 }

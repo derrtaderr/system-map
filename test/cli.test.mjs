@@ -301,6 +301,96 @@ test('reconcile never writes into the repo it is judging when --out points elsew
   });
 });
 
+// --- D6: the baseline is re-agreed, never silently replaced ------------------------------------------
+
+test('a second scan refuses to replace a committed baseline without --reagree', () => {
+  // flow.md: "re-agreeing the baseline is a decision, not a side effect". The second scan overwrote it
+  // in silence, which quietly makes every drift finding disappear.
+  withSandbox(A_REPO, (root) => {
+    assert.equal(run(['scan', '--now', NOW], { cwd: root }).code, 0);
+    const before = readFileSync(join(root, '.system-map/baseline.json'), 'utf8');
+
+    const result = run(['scan', '--now', NOW], { cwd: root });
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, /--reagree/);
+    assert.equal(readFileSync(join(root, '.system-map/baseline.json'), 'utf8'), before, 'untouched');
+  });
+});
+
+test('the refusal says what re-agreeing would change', () => {
+  withSandbox(A_REPO, (root) => {
+    run(['scan', '--now', NOW], { cwd: root });
+    mkdirSync(join(root, 'billing'), { recursive: true });
+    writeFileSync(join(root, 'billing/charge.mjs'), "import 'openai';\n");
+
+    const result = run(['scan', '--now', NOW], { cwd: root });
+    assert.equal(result.code, 2);
+    assert.match(result.stdout + result.stderr, /billing\/charge\.mjs|1 module/, 'names the delta it would swallow');
+  });
+});
+
+test('--reagree replaces it, and says how much moved', () => {
+  withSandbox(A_REPO, (root) => {
+    run(['scan', '--now', NOW], { cwd: root });
+    mkdirSync(join(root, 'billing'), { recursive: true });
+    writeFileSync(join(root, 'billing/charge.mjs'), "import 'openai';\n");
+
+    const result = run(['scan', '--reagree', '--now', NOW], { cwd: root });
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /re-agreed/i);
+    assert.ok(JSON.parse(readFileSync(join(root, '.system-map/baseline.json'), 'utf8')).modules.some((m) => m.path === 'billing/charge.mjs'));
+  });
+});
+
+test('a first scan needs no flag, because there is nothing to re-agree', () => {
+  withSandbox(A_REPO, (root) => {
+    assert.equal(run(['scan', '--now', NOW], { cwd: root }).code, 0);
+  });
+});
+
+test('derive refuses a path that differs from system.md only in case', () => {
+  // I1. APFS is case-insensitive, so `--out .vibecodepm/System.md --force` OVERWROTE the confirmed
+  // document the README, the usage and flow.md all promise it will never write.
+  withSandbox({ ...A_REPO, '.vibecodepm/system.md': '# mine, hand written\n' }, (root) => {
+    for (const out of ['.vibecodepm/System.md', '.vibecodepm/SYSTEM.MD', 'docs/System.Md']) {
+      const result = run(['derive', '--out', out, '--force', '--now', NOW], { cwd: root });
+      assert.equal(result.code, 2, out);
+      assert.match(result.stderr, /system\.md/i, out);
+    }
+    assert.equal(readFileSync(join(root, '.vibecodepm/system.md'), 'utf8'), '# mine, hand written\n');
+  });
+});
+
+// --- I8: the tool applies its own Unknown-ratio instrument ---------------------------------------------
+
+test('derive prints the Unknown ratio, and names the threshold when it is crossed', () => {
+  // metrics.md declares 10 to 40 per cent as the usable band and the PR body reported raw counts without
+  // ever applying it. An instrument you do not read is not an instrument.
+  withSandbox({ 'src/a.mjs': '' }, (root) => {
+    const result = run(['derive', '--now', NOW], { cwd: root });
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /\d+ of \d+ answers are Unknown \(\d+%\)/);
+
+    const draft = readFileSync(join(root, '.vibecodepm/system.draft.md'), 'utf8');
+    assert.match(draft, /\d+ of \d+ answers are Unknown \(\d+%\)/);
+    // A repo with one empty file is almost all Unknown, which is above the band.
+    assert.match(draft + result.stdout, /above the 40% .*too thin|too thin/i);
+  });
+});
+
+test('a rich repo’s ratio lands inside the band and says nothing alarming', () => {
+  withSandbox({
+    'package.json': JSON.stringify({ dependencies: { stripe: '^14', pg: '^8' } }),
+    'src/api.mjs': ["import Stripe from 'stripe';", "import { q } from '../store/db.mjs';", "app.get('/health', h);", 'process.env.SK_EXAMPLE;', "console.error('x');", "await fetch('https://hooks.slack.com/x');", "execFileSync('gh', []);", "setInterval(t, 1000);", ''].join('\n'),
+    'store/db.mjs': ["import pg from 'pg';", "writeFileSync('rows.json', body);", 'process.env.DATABASE_URL;', ''].join('\n'),
+  }, (root) => {
+    const result = run(['derive', '--now', NOW], { cwd: root });
+    const percent = Number(/(\d+)%/.exec(result.stdout)[1]);
+    assert.ok(percent <= 40, `${percent}% should be inside the band`);
+    assert.ok(!/too thin/i.test(result.stdout), result.stdout);
+  });
+});
+
 // --- B5: reconcile reads the repo it was pointed at, and says what it read -------------------------
 
 test('reconcile ../repo reads THAT repo’s system.md and baseline, not the working directory’s', () => {
