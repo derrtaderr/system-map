@@ -65,6 +65,10 @@ export function walkFiles(root) {
     realRoot = root;
   }
 
+  // Every directory is walked once, by its real path. Without this a symlink to a parent directory
+  // inside the repo was descended until ELOOP: 4 modules became 66 and every edge appeared 33 times
+  // (ship-check N2).
+  const visited = new Set([realRoot]);
   const descend = (dir) => {
     let entries;
     try {
@@ -93,6 +97,10 @@ export function walkFiles(root) {
       if (entry.isDirectory()) {
         if (IGNORED_SEGMENTS.has(entry.name)) continue;
         if (entry.name.startsWith('.') && !DOT_DIRS_KEPT.has(entry.name)) continue;
+        let real = full;
+        try { real = realpathSync(full); } catch {}
+        if (visited.has(real)) continue;
+        visited.add(real);
         descend(full);
         continue;
       }
@@ -116,6 +124,11 @@ export function walkFiles(root) {
 
         try {
           if (statSync(full).isDirectory()) {
+            if (visited.has(resolved)) {
+              gaps.push(noted('SYMLINK_LOOP', rel, `${rel} is a symlink to a directory this scan already walked, so it was not walked again`));
+              continue;
+            }
+            visited.add(resolved);
             descend(full);
             continue;
           }
