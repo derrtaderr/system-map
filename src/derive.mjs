@@ -29,6 +29,10 @@ export { ARCHITECT_HEADINGS } from './headings.mjs';
 const cited = (text, cite) => `- ${text} (${cite})`;
 const unknown = (text) => `- Unknown: ${text}`;
 
+// Some `how` values are already a phrase ("via an injected env object") and some are a bare expression
+// ("process.env"). Prefixing both produced "via via an injected env object".
+const readVia = (how) => (how.startsWith('via ') ? how : `via ${how}`);
+
 const HEALTH_ROUTE = /(health|healthz|livez|readyz|ping|status)\b/i;
 const CONNECTION_ENV = /DATABASE|_DSN|CONNECTION|POSTGRES|MYSQL|MONGO|REDIS|SUPABASE|SQL|_URI$|BUCKET|S3_/i;
 
@@ -106,7 +110,7 @@ function whereStateLives(scan) {
   // docs/SPEC.md §4A row D1, and §3F promised it from the first commit. Every dogfood repo keeps state
   // on disk, and every draft used to say "no storage client was found".
   for (const write of scan.writes ?? []) {
-    const more = write.alsoWrites > 0 ? `, and ${write.alsoWrites} more write${write.alsoWrites === 1 ? '' : 's'} in this module` : '';
+    const more = (write.alsoAt ?? []).length > 0 ? `, and also at ${write.alsoAt.join(', ')}` : '';
     lines.push(cited(`state lives in local files: \`${write.target}\`, written with ${write.call}${more}`, write.cite));
   }
 
@@ -126,13 +130,13 @@ function doorsAndKeys(scan) {
   const settings = scan.env.filter((entry) => !entry.secretish);
 
   for (const entry of secrets) {
-    lines.push(cited(`\`${entry.name}\` is read from the environment via ${entry.how}, and its name says it is a credential`, entry.cite));
+    lines.push(cited(`\`${entry.name}\` is read from the environment ${readVia(entry.how)}, and its name says it is a credential`, entry.cite));
   }
 
   if (secrets.length === 0) lines.push(unknown('no credential-shaped environment variable was found, so either this system holds no key or a key is arriving by a route the scan cannot see'));
 
   for (const entry of settings) {
-    lines.push(cited(`\`${entry.name}\` is configuration rather than a key, read via ${entry.how}`, entry.cite));
+    lines.push(cited(`\`${entry.name}\` is configuration rather than a key, read ${readVia(entry.how)}`, entry.cite));
   }
 
   for (const check of scan.authChecks) {

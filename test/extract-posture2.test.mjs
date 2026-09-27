@@ -89,6 +89,18 @@ test('mkdirSync is NOT a write row, because a directory is not state', () => {
   assert.deepEqual(writeRows('src/a.mjs', 'mkdirSync(dir, { recursive: true });\n'), []);
 });
 
+test('the one row carries every other write LINE in the module, so each is followable', () => {
+  // The dedupe keeps the section short; the citations keep it complete. landed writes its receipt at
+  // receipts.mjs:58 and its settled index at receipts.mjs:168, both through a variable called `path`,
+  // and the literal filename lives in a constant that text extraction cannot reach from the write site.
+  // The line number is the only honest way to point at the second file, so it has to survive.
+  const text = ['writeFileSync(path, body);', '', '', 'writeFileSync(path, other);', ''].join('\n');
+  const [row] = extractWrites('src/receipts.mjs', text).writes;
+
+  assert.equal(row.cite, 'src/receipts.mjs:1');
+  assert.deepEqual(row.alsoAt, ['src/receipts.mjs:4']);
+});
+
 test('a read is not a write', () => {
   for (const line of ["readFileSync('a.json');\n", "open('a.json')\n", "open('a.json', 'r')\n", "json.load(handle)\n"]) {
     assert.deepEqual(writeRows('src/a.mjs', line), [], line.trim());

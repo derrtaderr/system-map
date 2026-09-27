@@ -173,6 +173,10 @@ Named here so a stranger is not surprised, and so a gap is never mistaken for an
 - **Queue edges.** A producer and a consumer that meet in Redis share no import. The queue client is
   reported; the edge cannot be.
 - **Any language that is not Node or Python.** A Go service in the same monorepo is invisible.
+- **The literal filename behind a write, when it lives in a constant.** `landed` writes its settled index
+  through `writeFileSync(path, …)` where `path = settledPath(outDir)` and the name `settled.json` is a
+  constant three functions away. The scan reports the write and its LINE, which is followable, and cannot
+  report the filename. Every write line in a module is cited for exactly this reason.
 - **An injected WRITE function.** `appendClaim(path, claim, { write = appendFileSync })` performs its
   write through `write(…)`, and a rule keyed on the function's name cannot see it. Widening to any
   `write(` would match `stream.write`, `res.write` and every other unrelated writer, so the miss is named

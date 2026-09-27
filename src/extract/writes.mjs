@@ -122,8 +122,18 @@ export function extractWrites(path, text, { includeTests = false } = {}) {
   // The extra writes are counted so nothing is hidden.
   if (found.length === 0) return { writes: [] };
 
-  const [firstWrite] = found.sort((a, b) => a.line - b.line || a.call.localeCompare(b.call));
+  const sorted = found.sort((a, b) => a.line - b.line || a.call.localeCompare(b.call));
+  const [firstWrite] = sorted;
+
+  // The dedupe keeps the section short; the CITATIONS keep it complete. Two writes in one module through
+  // a variable of the same name are two files, and the line number is the only honest way to point at the
+  // second one when the literal filename lives in a constant somewhere else.
   return {
-    writes: [{ ...firstWrite, alsoWrites: found.length - 1, targets: [...new Set(found.map((write) => write.target))] }],
+    writes: [{
+      ...firstWrite,
+      alsoWrites: sorted.length - 1,
+      alsoAt: sorted.slice(1).map((write) => write.cite),
+      targets: [...new Set(sorted.map((write) => write.target))],
+    }],
   };
 }
