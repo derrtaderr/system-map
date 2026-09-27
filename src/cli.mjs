@@ -45,6 +45,9 @@ ignored, so no invocation can quietly become a different one than you typed. Wri
              --now <ISO>
   demo       --out <dir>    required, and nothing is ever written outside it
              --now <ISO>
+  scan, derive and reconcile also take --include-tests: count test files as part of the system.
+             By default tests are counted, named in section 1, and excluded from pieces and
+             blast radius, because a test directory is not the system it tests.
 
 EVERY --out RESOLVES AGAINST THE WORKING DIRECTORY, never against [path]. Scanning somebody
 else's repository cannot write into it.
@@ -65,9 +68,9 @@ lands beside it.
 `;
 
 const FLAG_SPEC = {
-  scan: { '--out': 'value', '--now': 'value', '--reagree': 'boolean' },
-  derive: { '--out': 'value', '--now': 'value', '--force': 'boolean' },
-  reconcile: { '--system': 'value', '--baseline': 'value', '--out': 'value', '--now': 'value' },
+  scan: { '--out': 'value', '--now': 'value', '--reagree': 'boolean', '--include-tests': 'boolean' },
+  derive: { '--out': 'value', '--now': 'value', '--force': 'boolean', '--include-tests': 'boolean' },
+  reconcile: { '--system': 'value', '--baseline': 'value', '--out': 'value', '--now': 'value', '--include-tests': 'boolean' },
   demo: { '--out': 'value', '--now': 'value' },
 };
 
@@ -188,7 +191,7 @@ function reportGaps(baseline, log) {
 
 function doScan({ path, flags, now }, log) {
   const root = readRepoRoot(path);
-  const baseline = scanRepo(root);
+  const baseline = scanRepo(root, { includeTests: flags['--include-tests'] === true });
   const requestedOut = flags['--out'] ?? '.system-map/baseline.json';
   const out = outputPath(requestedOut);
 
@@ -259,7 +262,7 @@ function doDerive({ path, flags, now }, log) {
     throw new Refusal(`${requested} already exists. Pass --force to overwrite it, or choose another --out`);
   }
 
-  const baseline = scanRepo(root);
+  const baseline = scanRepo(root, { includeTests: flags['--include-tests'] === true });
   // Never the argv path. A draft is meant to be committed, and echoing an absolute path would carry a
   // home directory into the user's repository — the privacy guard's own HOME_PATH rule, broken in the
   // tool's output instead of in its tree. Found by dogfooding against a repo outside this one.
@@ -338,7 +341,7 @@ function doReconcile({ path, flags, now }, log) {
   inputs[0].path = path === '.' ? '.' : displayPath(process.cwd(), root);
 
   const outcome = reconcile({
-    scan: scanRepo(root),
+    scan: scanRepo(root, { includeTests: flags['--include-tests'] === true }),
     declaredText,
     committedBaseline,
     now,
@@ -421,7 +424,11 @@ export async function main({ argv, log = console.log, warn = console.error }) {
       warn(`system-map: ${error.message}`);
       return 2;
     }
-    throw error;
+    // A crash must never share an exit code with a verdict. Exit 1 means "drift found, and the run was
+    // trustworthy"; a run that died half-way is neither, so it takes the code that means "could not
+    // read enough to judge" (ship-check N5).
+    warn(`system-map: the run crashed and could not complete (${error?.message ?? error}). Nothing it printed is trustworthy.`);
+    return 3;
   }
 }
 
