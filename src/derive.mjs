@@ -14,15 +14,11 @@
 // nothing, the honest output is a page of Unknowns, not a page of plausible sentences.
 
 import { pieceOf } from './reconcile.mjs';
+import { ARCHITECT_HEADINGS as HEADINGS, GAP_HEADING, DRAFT_TITLE } from './headings.mjs';
 
-export const ARCHITECT_HEADINGS = [
-  '1. The map',
-  '2. Where state lives',
-  '3. Doors and keys',
-  '4. What bills per use',
-  '5. How you find out it broke',
-  '6. Blast radius per piece',
-];
+// Re-exported, not redeclared. The parser reads the same table, and that is the whole point of
+// src/headings.mjs.
+export { ARCHITECT_HEADINGS } from './headings.mjs';
 
 // The two line shapes. Nothing else may reach the page.
 const cited = (text, cite) => `- ${text} (${cite})`;
@@ -247,7 +243,7 @@ export function deriveDraft(scan, { now, repoName }) {
     `derived_from: ${repoName}`,
     '---',
     '',
-    '# System map, derived',
+    `# ${DRAFT_TITLE}`,
     '',
     'Every line below was read out of the code and cites the file and line it came from, or is written',
     'as an `Unknown` naming what the scan could not see. **This is a draft, not a decision.** Walk it',
@@ -263,14 +259,14 @@ export function deriveDraft(scan, { now, repoName }) {
     out.push('');
   }
 
-  for (let index = 0; index < ARCHITECT_HEADINGS.length; index += 1) {
-    out.push(`## ${ARCHITECT_HEADINGS[index]}`);
+  for (let index = 0; index < HEADINGS.length; index += 1) {
+    out.push(`## ${HEADINGS[index]}`);
     out.push('');
     out.push(...sections[index]);
     out.push('');
   }
 
-  out.push('## What the scan could not see');
+  out.push(`## ${GAP_HEADING}`);
   out.push('');
   if ((scan.gaps ?? []).length === 0) {
     out.push('Nothing was refused or unreadable on this run. The structural limits of text extraction still apply: dynamic imports, reflection, generated code, and anything configured outside the repository.');

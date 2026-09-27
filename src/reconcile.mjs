@@ -156,11 +156,18 @@ function unpricedClients(scan, declared) {
 function vanishedSurfaces(scan, declared, delta, systemPath) {
   const findings = [];
 
-  // Present in the code's own vocabulary: an observability surface, a client, or a route.
+  // Present in the code's own vocabulary. This list has to cover everything `derive` is capable of
+  // writing into the 2am answer, or the tool reports its own sentences back as findings: schedules
+  // were missing, so `crontab`, `github-actions` and `setInterval` came back as alert surfaces that
+  // had vanished. docs/SPEC.md §4 records the rule — section 5's vocabulary is whatever section 5 of a
+  // derived draft can contain.
   const present = [
     ...scan.observability.map((surface) => surface.name),
     ...scan.clients.map((client) => client.name),
     ...scan.routes.map((route) => route.path),
+    ...scan.routes.map((route) => `${route.method} ${route.path}`),
+    ...scan.schedules.map((schedule) => schedule.kind),
+    ...scan.schedules.map((schedule) => schedule.detail),
   ];
 
   for (const entry of declared.watch.cited) {
