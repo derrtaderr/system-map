@@ -136,7 +136,11 @@ function doorsAndKeys(scan) {
   if (secrets.length === 0) lines.push(unknown('no credential-shaped environment variable was found, so either this system holds no key or a key is arriving by a route the scan cannot see'));
 
   for (const entry of settings) {
-    lines.push(cited(`\`${entry.name}\` is configuration rather than a key, read ${readVia(entry.how)}`, entry.cite));
+    if (CONNECTION_ENV.test(entry.name)) {
+      lines.push(cited(`\`${entry.name}\` is a connection string, read ${readVia(entry.how)}; a DSN commonly carries a password, so treat it as a credential until the value proves otherwise`, entry.cite));
+    } else {
+      lines.push(cited(`\`${entry.name}\` is configuration rather than a key, read ${readVia(entry.how)}`, entry.cite));
+    }
   }
 
   for (const check of scan.authChecks) {
