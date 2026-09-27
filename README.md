@@ -163,6 +163,11 @@ to say" when it means "never checked".
 $ node bin/system-map.mjs reconcile fixtures/demo-repo --system fixtures/demo-repo/.vibecodepm/system.md --baseline /tmp/system-map-demo/baseline.json --out /tmp/system-map-demo --now 2026-09-27T09:00:00.000Z
 system-map reconcile  fixtures/demo-repo
 
+  read:
+    code       fixtures/demo-repo
+    system.md  .vibecodepm/system.md  (1544 bytes)
+    baseline   baseline.json  (10427 bytes)
+
   12 findings, every one cited:
       1  pieces the map does not name
       1  edges the map omits
@@ -170,8 +175,14 @@ system-map reconcile  fixtures/demo-repo
       1  metered clients section 4 never prices
       1  alert or log surfaces that vanished
 
-  report  /tmp/system-map-demo/reconcile-2026-09-27.md
+  report  reconcile-2026-09-27.md
 ```
+
+Every run names the three inputs it read, with sizes, on stdout and in the report's own
+`## What this run read` header. That is not decoration: `reconcile ../repo` used to resolve
+`--system` and `--baseline` against the *working directory*, so running it from another project
+compared one repo's code against another project's design and exited 1 with six plausible findings,
+naming neither input. Input defaults now resolve against `[path]`, and the report says what it read.
 
 That run measures against a baseline scanned one second earlier, so section 6 is empty and section 5
 loses the surface that vanished. The demo above uses the fixture's **committed** baseline instead,

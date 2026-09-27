@@ -13,7 +13,7 @@
 // repository read-only by construction, rather than by good intentions.
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import { scanRepo, BASELINE_SCHEMA } from './scan.mjs';
 import { deriveDraft } from './derive.mjs';
@@ -125,9 +125,40 @@ function parse(argv) {
   return { verb, flags, path: positional[0] ?? '.', now, nowExplicit: flags['--now'] !== undefined };
 }
 
-// Everything the CLI writes resolves here, against the working directory. docs/SPEC.md §3K.
+// Everything the CLI WRITES resolves here, against the working directory. docs/SPEC.md §3K. That is
+// what makes scanning somebody else's repo read-only by construction.
 function outputPath(value) {
   return isAbsolute(value) ? value : resolve(process.cwd(), value);
+}
+
+// Everything the CLI READS BY DEFAULT resolves against [path], the repo under inspection. The two
+// rules point in opposite directions on purpose, and conflating them was the sharpest defect the
+// ship-check found: `reconcile ../repo` from a project with its own system.md and baseline compared
+// repo A's code against project B's design and exited 1 with six plausible findings, naming neither
+// input. An explicit --system or --baseline is the caller being specific, so that resolves against the
+// working directory, where they typed it.
+function inputPath(root, requested, explicit) {
+  if (isAbsolute(requested)) return requested;
+  return explicit ? resolve(process.cwd(), requested) : resolve(root, requested);
+}
+
+// How a path is NAMED in output. Never an absolute one: a report is meant to be committed, and it must
+// not carry a home directory just because the caller typed one. Same class as the derived_from bug.
+function displayPath(root, full) {
+  const fromRoot = relative(root, full);
+  if (fromRoot !== '' && !fromRoot.startsWith('..')) return fromRoot;
+  const fromCwd = relative(process.cwd(), full);
+  if (fromCwd !== '' && !fromCwd.startsWith('..')) return fromCwd;
+  return basename(full);
+}
+
+function describeInput(root, full, label) {
+  try {
+    const stats = statSync(full);
+    return { label, path: displayPath(root, full), bytes: stats.size, present: true };
+  } catch {
+    return { label, path: displayPath(root, full), bytes: null, present: false };
+  }
 }
 
 function readRepoRoot(value) {
@@ -215,7 +246,7 @@ function doDerive({ path, flags, now }, log) {
   return blocking > 0 ? 3 : 0;
 }
 
-function readJson(path, label) {
+function readJson(path, label, display = path) {
   let text;
   try {
     text = readFileSync(path, 'utf8');
@@ -227,8 +258,20 @@ function readJson(path, label) {
   } catch (error) {
     // A baseline that exists and is corrupt is a refusal, not a missing baseline. Treating it as
     // absent would exit 3 and send the reader looking for a file that is right there.
-    throw new Refusal(`the committed ${label} at ${path} is not valid JSON: ${error.message}`);
+    throw new Refusal(`the committed ${label} at ${display} is not valid JSON: ${error.message}`);
   }
+}
+
+// A same-day rerun must not erase the run before it: the report that found something could be wiped
+// by the one that did not.
+function nextFreeReport(dir, day) {
+  const first = join(dir, `reconcile-${day}.md`);
+  if (!existsSync(first)) return first;
+  for (let suffix = 2; suffix < 1000; suffix += 1) {
+    const candidate = join(dir, `reconcile-${day}-${suffix}.md`);
+    if (!existsSync(candidate)) return candidate;
+  }
+  throw new Refusal(`there are already 999 reports for ${day} in ${displayPath(dir, dir)}`);
 }
 
 function doReconcile({ path, flags, now }, log) {
@@ -237,31 +280,46 @@ function doReconcile({ path, flags, now }, log) {
   const baselineRequested = flags['--baseline'] ?? '.system-map/baseline.json';
   const outDir = flags['--out'] ?? '.system-map';
 
-  const systemPath = outputPath(systemRequested);
+  const systemPath = inputPath(root, systemRequested, flags['--system'] !== undefined);
+  const baselineFull = inputPath(root, baselineRequested, flags['--baseline'] !== undefined);
+
   let declaredText = null;
   if (existsSync(systemPath)) {
     try {
       declaredText = readFileSync(systemPath, 'utf8');
     } catch (error) {
-      throw new Refusal(`could not read ${systemRequested}: ${error.message}`);
+      throw new Refusal(`could not read ${displayPath(root, systemPath)}: ${error.message}`);
     }
   }
 
-  const committedBaseline = readJson(outputPath(baselineRequested), 'baseline');
+  const committedBaseline = readJson(baselineFull, 'baseline', displayPath(root, baselineFull));
+
+  const inputs = [
+    { label: 'code', path: displayPath(root, root) === '' ? path : displayPath(root, root), bytes: null, present: true },
+    describeInput(root, systemPath, 'system.md'),
+    describeInput(root, baselineFull, 'baseline'),
+  ];
+  inputs[0].path = path === '.' ? '.' : displayPath(process.cwd(), root);
 
   const outcome = reconcile({
     scan: scanRepo(root),
     declaredText,
     committedBaseline,
     now,
-    systemPath: systemRequested,
-    baselinePath: baselineRequested,
+    systemPath: displayPath(root, systemPath),
+    baselinePath: displayPath(root, baselineFull),
+    inputs,
   });
 
-  const filename = `reconcile-${now.slice(0, 10)}.md`;
-  write(join(outputPath(outDir), filename), `${outcome.report}\n`);
+  const reportFile = nextFreeReport(outputPath(outDir), now.slice(0, 10));
+  write(reportFile, `${outcome.report}\n`);
 
   log(`system-map reconcile  ${path}`);
+  log('');
+  log('  read:');
+  for (const input of inputs) {
+    log(`    ${input.label.padEnd(10)} ${input.path}${input.bytes === null ? '' : `  (${input.bytes} bytes)`}${input.present ? '' : '  MISSING'}`);
+  }
   log('');
   if (outcome.verdict === 'cannot-judge') {
     log('  Could not read enough to judge. The report names every gap.');
@@ -283,7 +341,7 @@ function doReconcile({ path, flags, now }, log) {
     }
   }
   log('');
-  log(`  report  ${join(outDir, filename)}`);
+  log(`  report  ${displayPath(process.cwd(), reportFile)}`);
 
   return outcome.exitCode;
 }
@@ -304,9 +362,10 @@ export async function main({ argv, log = console.log, warn = console.error }) {
       log(USAGE);
       return 0;
     }
+    // M10. flow.md says a refusal is one sentence. It was one sentence plus forty-five lines of
+    // usage, which buries the sentence that matters.
     warn(`system-map: ${error.message}`);
-    warn('');
-    warn(USAGE);
+    warn('Run "node bin/system-map.mjs --help" for the full Usage.');
     return 2;
   }
 

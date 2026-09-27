@@ -226,7 +226,7 @@ const EMPTY_DECLARED = {
   parsedAnything: false,
 };
 
-export function reconcile({ scan, declaredText, committedBaseline, now = new Date().toISOString(), systemPath = '.vibecodepm/system.md', baselinePath = '.system-map/baseline.json' }) {
+export function reconcile({ scan, declaredText, committedBaseline, now = new Date().toISOString(), systemPath = '.vibecodepm/system.md', baselinePath = '.system-map/baseline.json', inputs = [] }) {
   const gaps = [...(scan.gaps ?? [])];
   const limits = [];
 
@@ -240,7 +240,9 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
       code: 'SYSTEM_MD_ABSENT',
       path: systemPath,
       cite: systemPath,
-      detail: `there is no declared design at ${systemPath}, so there is nothing to reconcile against and a clean report would mean nothing`,
+      // I9: flow.md promises the recovery path names the verb. It named the file and left the reader
+      // to guess the command.
+      detail: `there is no declared design at ${systemPath}, so there is nothing to reconcile against and a clean report would mean nothing. Run \`system-map derive\` to draft one, confirm it, and save it there`,
     });
   } else {
     declared = parseDeclared(declaredText);
@@ -250,7 +252,7 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
         code: 'SYSTEM_MD_UNPARSEABLE',
         path: systemPath,
         cite: systemPath,
-        detail: `${systemPath} exists but no section of it could be read, so every section below would be empty for the wrong reason`,
+        detail: `${systemPath} exists but no section of it could be read, so every section below would be empty for the wrong reason. Compare it against \`system-map derive\` output, whose headings this parser always reads`,
       });
     } else {
       declaredUsable = true;
@@ -264,7 +266,7 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
       code: 'BASELINE_ABSENT',
       path: baselinePath,
       cite: baselinePath,
-      detail: `there is no committed baseline at ${baselinePath}, so nothing here can say what moved since the design was agreed`,
+      detail: `there is no committed baseline at ${baselinePath}, so nothing here can say what moved since the design was agreed. Run \`system-map scan\` and commit the result`,
     });
   } else if (committedBaseline.schema !== BASELINE_SCHEMA) {
     gaps.push({
@@ -272,7 +274,7 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
       code: 'BASELINE_SCHEMA_UNKNOWN',
       path: baselinePath,
       cite: baselinePath,
-      detail: `the committed baseline says schema "${committedBaseline.schema}" and this build reads "${BASELINE_SCHEMA}", so a diff between them would compare two different shapes`,
+      detail: `the committed baseline says schema "${committedBaseline.schema}" and this build reads "${BASELINE_SCHEMA}", so a diff between them would compare two different shapes. Run \`system-map scan --reagree\` to write a fresh one`,
     });
   } else {
     delta = computeDelta(committedBaseline, scan);
@@ -316,6 +318,7 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
   const verdict = exitCode === 3 ? 'cannot-judge' : exitCode === 1 ? 'drift' : 'clean';
 
   const outcome = {
+    inputs,
     sections,
     gaps: gaps.sort((a, b) => a.tier.localeCompare(b.tier) || a.code.localeCompare(b.code) || String(a.cite).localeCompare(String(b.cite))),
     limits,
