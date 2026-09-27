@@ -34,7 +34,19 @@ const HEADING = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/;
 const BULLET = /^\s*[-*+]\s+(.+?)\s*$/;
 
 const ARROW = /^(.+?)\s*(?:→|->|=>|⟶)\s*(.+)$/;
-const VERB = /^(.+?)\s+(?:calls|talks to|writes to|reads from|sends to|pushes to|queues to|publishes to|invokes|depends on)\s+(.+)$/i;
+
+// The verbs a person actually writes. `to` and `from` are optional because both "writes to the store"
+// and "writes the store" appear in real documents. docs/SPEC.md §4A row I7.
+const VERB = /^(.+?)\s+(?:calls|talks to|writes(?:\s+to)?|reads(?:\s+from)?|sends(?:\s+to)?|pushes(?:\s+to)?|queues(?:\s+to)?|publishes(?:\s+to)?|imports|invokes|uses|depends on)\s+(.+)$/i;
+
+// A hand-written map is prose. "The nightly worker" and "the store" name the same things as `worker` and
+// `store`, and a tool that cannot see that reports findings against a document that is RIGHT — which was
+// 4 of 11 findings on the one hand-written map a ship-check tried.
+const LEADING_ARTICLE = /^(?:the|a|an|our|its|this)\s+/i;
+
+export function withoutArticle(value) {
+  return String(value).replace(LEADING_ARTICLE, '').trim();
+}
 
 // Built fresh on every call. A shared /g regex carries its lastIndex between calls, and
 // String.prototype.matchAll inherits that lastIndex, so one stray .exec() elsewhere in the module
@@ -59,7 +71,7 @@ function stripMarkup(value) {
 // Splitting on every period turned `worker/run.py` into `worker/run`, which is a piece name that
 // matches no file and would have been reported as a map the code does not implement.
 function edgeEnd(value) {
-  return stripMarkup(value.split(/[,;(]|\.\s|\.$/)[0]);
+  return withoutArticle(stripMarkup(value.split(/[,;(]|\.\s|\.$/)[0]));
 }
 
 // Every backticked token in a run of lines, WITH the line it was written on. The line is what lets a
@@ -179,21 +191,26 @@ function readMap(section) {
     // An edge bullet is an edge and not also a piece. "API → Worker" names no new piece.
     const arrow = ARROW.exec(body);
     if (arrow !== null) {
-      edges.push({ from: stripMarkup(arrow[1]), to: edgeEnd(arrow[2]), line: line.n });
+      edges.push({ from: withoutArticle(stripMarkup(arrow[1])), to: edgeEnd(arrow[2]), line: line.n });
       continue;
     }
 
     const verb = VERB.exec(body);
     if (verb !== null) {
-      edges.push({ from: stripMarkup(verb[1]), to: edgeEnd(verb[2]), line: line.n });
+      edges.push({ from: withoutArticle(stripMarkup(verb[1])), to: edgeEnd(verb[2]), line: line.n });
       continue;
     }
 
     const bold = /\*\*([^*]+)\*\*/.exec(body);
     const firstTicked = /`([^`\n]+)`/.exec(body);
-    const separated = body.split(/\s+(?:—|--|–)\s+|:\s+/)[0];
+    // A prose bullet's name is the phrase before the first clause break, minus its article. "The nightly
+    // worker, in Python and quite slow." names `nightly worker`, and carrying the rest made it match no
+    // piece in any repo.
+    const separated = body.split(/\s+(?:—|--|–)\s+|:\s+|[,;]\s+|\.\s|\.$/)[0];
 
-    const name = stripMarkup(bold !== null ? bold[1] : firstTicked !== null ? firstTicked[1] : separated);
+    const name = bold !== null || firstTicked !== null
+      ? stripMarkup(bold !== null ? bold[1] : firstTicked[1])
+      : withoutArticle(stripMarkup(separated));
 
     // A name with no letter and no digit is not a name. Reporting it as a piece would put a row in
     // the map that can never match anything in the code, and hide the fact that a line was missed.

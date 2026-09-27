@@ -251,3 +251,51 @@ test('the report is deterministic for one input', () => {
   const files = { 'src/api.mjs': "import 'stripe';\nprocess.env.SK_EXAMPLE;\n", 'billing/charge.mjs': '' };
   assert.equal(judge(files, MAP_OF_ONE).report, judge(files, MAP_OF_ONE).report);
 });
+
+// --- I7: a hand-written map, matched the way a person wrote it ------------------------------------------
+//
+// The reviewer's case: 11 findings against this map on the demo fixture, of which 4 were false. All four
+// were the tool failing to read a document that was right.
+
+const PROSE_MAP = [
+  '# Kiteline, as we understand it',
+  '',
+  '## How it hangs together',
+  '',
+  '- The front door is the API. It lives in `src/`.',
+  '- The database layer, our store, sits in `store/`.',
+  '- The Slack notifier. See `notify/slack.mjs`.',
+  '- The nightly worker, in Python.',
+  '- The billing module charges cards.',
+  '- The API calls the store.',
+  '- The worker talks to the store.',
+  '- The API sends to the notifier.',
+  '',
+].join('\n');
+
+test('a piece named only in a description matches the directory it describes', () => {
+  const outcome = judge({ 'src/api.mjs': '', 'worker/run.py': '', 'billing/charge.mjs': '' }, PROSE_MAP);
+  assert.deepEqual(ids(outcome, 'unnamedPieces'), []);
+});
+
+test('an edge whose endpoints carry articles is a declared edge', () => {
+  const outcome = judge(
+    { 'src/api.mjs': "import '../store/db.mjs';\nimport '../notify/slack.mjs';\n", 'store/db.mjs': '', 'notify/slack.mjs': '' },
+    PROSE_MAP,
+  );
+  assert.deepEqual(ids(outcome, 'undeclaredEdges'), []);
+});
+
+test('the prose map still catches its own lie', () => {
+  // The map says "we do not use OpenAI anywhere". Tolerance must not become credulity.
+  const declared = [PROSE_MAP, '## Costs', '', '`stripe` bills per charge. We do not use OpenAI anywhere.', ''].join('\n');
+  const outcome = judge({ 'src/api.mjs': "import 'stripe';\nimport 'openai';\n" }, declared);
+  assert.deepEqual(ids(outcome, 'unpricedClients'), ['openai']);
+});
+
+test('tolerance does not make an unrelated word match a piece', () => {
+  // "charges cards" must not match a `cards` directory that has nothing to do with it, and the stemming
+  // must not collapse two real pieces into one.
+  const outcome = judge({ 'src/api.mjs': '', 'cards/deck.mjs': '', 'charges/fee.mjs': '' }, PROSE_MAP);
+  assert.deepEqual(ids(outcome, 'unnamedPieces').sort(), ['cards', 'charges']);
+});

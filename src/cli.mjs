@@ -16,7 +16,8 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import { scanRepo, BASELINE_SCHEMA } from './scan.mjs';
-import { deriveDraft } from './derive.mjs';
+import { deriveDraft, unknownRatio, unknownRatioLines } from './derive.mjs';
+import { computeDelta } from './delta.mjs';
 import { reconcile } from './reconcile.mjs';
 import { runDemo, DEMO_NOW } from './demo.mjs';
 
@@ -64,11 +65,13 @@ lands beside it.
 `;
 
 const FLAG_SPEC = {
-  scan: { '--out': 'value', '--now': 'value' },
+  scan: { '--out': 'value', '--now': 'value', '--reagree': 'boolean' },
   derive: { '--out': 'value', '--now': 'value', '--force': 'boolean' },
   reconcile: { '--system': 'value', '--baseline': 'value', '--out': 'value', '--now': 'value' },
   demo: { '--out': 'value', '--now': 'value' },
 };
+
+const DELTA_SUMMARY_KINDS = ['modules', 'edges', 'clients', 'env', 'routes', 'writes', 'shells'];
 
 class Refusal extends Error {}
 class HelpRequested extends Error {}
@@ -186,7 +189,36 @@ function reportGaps(baseline, log) {
 function doScan({ path, flags, now }, log) {
   const root = readRepoRoot(path);
   const baseline = scanRepo(root);
-  const out = outputPath(flags['--out'] ?? '.system-map/baseline.json');
+  const requestedOut = flags['--out'] ?? '.system-map/baseline.json';
+  const out = outputPath(requestedOut);
+
+  // flow.md: "re-agreeing the baseline is a decision, not a side effect". A second scan used to
+  // overwrite it in silence, which makes every drift finding disappear without anybody choosing that.
+  if (existsSync(out) && flags['--reagree'] !== true) {
+    const existing = readJson(out, 'baseline', displayPath(root, out));
+    const delta = existing === null ? null : computeDelta(existing, baseline);
+
+    const summary = delta === null
+      ? 'the file that is there could not be read as a baseline'
+      : delta.empty
+        ? 'nothing has moved since it was written, so replacing it would change nothing'
+        : `it would swallow ${delta.count} change(s): ${DELTA_SUMMARY_KINDS.map((kind) => {
+            const total = delta[kind].added.length + delta[kind].removed.length;
+            return total === 0 ? null : `${total} ${kind}`;
+          }).filter((part) => part !== null).join(', ')}`;
+
+    if (delta !== null && !delta.empty) {
+      for (const kind of DELTA_SUMMARY_KINDS) {
+        for (const entry of [...delta[kind].added, ...delta[kind].removed].slice(0, 3)) {
+          log(`  would change  ${kind}: ${entry.id}`);
+        }
+      }
+    }
+
+    throw new Refusal(
+      `${displayPath(root, out)} already exists and ${summary}. Re-agreeing a baseline is a decision: pass --reagree to replace it, or --out to write somewhere else`,
+    );
+  }
 
   // `generated_at` is stamped here and not in the scan, so the scan itself stays byte-stable and
   // the delta has nothing to ignore.
@@ -198,7 +230,7 @@ function doScan({ path, flags, now }, log) {
   log(`  ${counts.modules} modules, ${counts.edges} edges, ${counts.routes} routes, ${counts.clients} clients`);
   log(`  ${counts.env} env reads, ${counts.authChecks} auth checks, ${counts.schedules} schedules, ${counts.observability} log or alert surfaces`);
   log('');
-  log(`  baseline  ${flags['--out'] ?? '.system-map/baseline.json'}`);
+  log(`  baseline  ${requestedOut}${flags['--reagree'] === true ? '  (re-agreed)' : ''}`);
 
   const blocking = reportGaps(baseline, log);
   if (blocking > 0) {
@@ -218,7 +250,9 @@ function doDerive({ path, flags, now }, log) {
 
   // The confirmed document is a human's. A tool that can be talked into overwriting it with a
   // derived draft has no business running unattended, so this refusal has no escape hatch.
-  if (/(^|\/)system\.md$/.test(requested.replace(/\\/g, '/'))) {
+  // Case-INSENSITIVE, because APFS is: `--out .vibecodepm/System.md --force` overwrote the confirmed
+  // document that the README, the usage and flow.md all promise derive will never write.
+  if (/(^|\/)system\.md$/i.test(requested.replace(/\\/g, '/'))) {
     throw new Refusal(`--out names a file called system.md. derive never writes one; the confirmed document is yours. Write the draft somewhere else, for example .vibecodepm/system.draft.md`);
   }
   if (existsSync(out) && flags['--force'] !== true) {
@@ -241,6 +275,8 @@ function doDerive({ path, flags, now }, log) {
   log('');
   log('  Every line in the draft cites a file and a line, or is written as an Unknown naming what');
   log('  the scan could not see. It is a draft, not a decision: confirm or correct each answer.');
+  log('');
+  for (const line of unknownRatioLines(unknownRatio(readFileSync(out, 'utf8')))) log(`  ${line}`);
 
   const blocking = reportGaps(baseline, log);
   return blocking > 0 ? 3 : 0;
