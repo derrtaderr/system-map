@@ -30,14 +30,26 @@ export function shouldRead(path) {
 
 export function walkFiles(root) {
   const files = [];
+  const gaps = [];
 
   const descend = (dir) => {
     let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      // A directory we cannot list contributes nothing we could cite, and the files inside it are
-      // reported the moment one of them is named by an edge.
+    } catch (error) {
+      // A directory we could not LIST is not an empty directory. This used to return silently, and
+      // `chmod 000 src/hidden` with a baseline scanned in the same state reported "No drift" and
+      // exited 0 — the eighth row of the false-green table, found by a ship-check rather than by the
+      // table itself.
+      const rel = relative(root, dir).split(sep).join('/') || '.';
+      gaps.push({
+        tier: 'BLOCKING',
+        code: 'UNREADABLE_DIR',
+        path: rel,
+        line: 1,
+        cite: rel,
+        detail: `the directory could not be listed (${error.code ?? error.message}), so anything inside it is missing from this run and nothing here can say what`,
+      });
       return;
     }
 
@@ -57,14 +69,13 @@ export function walkFiles(root) {
   };
 
   descend(root);
-  return files.sort();
+  return { files: files.sort(), gaps };
 }
 
 // Read every file worth reading, and turn a failure into a BLOCKING gap rather than a silence.
 export function readRepo(root) {
   const contents = new Map();
-  const gaps = [];
-  const files = walkFiles(root);
+  const { files, gaps } = walkFiles(root);
 
   for (const path of files) {
     if (!shouldRead(path)) continue;

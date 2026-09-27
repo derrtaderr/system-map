@@ -96,9 +96,13 @@ a rule of "any gap means exit 3" means the tool never returns a verdict and nobo
 | `BLOCKING` | The run could not read enough to judge | exit 3, and 3 outranks 1 |
 | `NOTED` | A structural limit of text extraction, known in advance | none; reported in its own section |
 
-`BLOCKING` gaps, exhaustively: an unreadable file, an unparseable manifest, an absent
-`system.md`, an unparseable `system.md`, an absent committed baseline, and a repo with zero
-modules.
+`BLOCKING` gaps live in **one** list, `src/gaps.mjs`, checked against this document, README,
+DESIGN and the code by `test/spec-claims.test.mjs`. There are eight: `EMPTY_REPO`,
+`UNREADABLE_FILE`, `UNREADABLE_DIR`, `MANIFEST_UNPARSED`, `SYSTEM_MD_ABSENT`,
+`SYSTEM_MD_UNPARSEABLE`, `BASELINE_ABSENT`, `BASELINE_SCHEMA_UNKNOWN`.
+
+This paragraph previously called six of them exhaustive while README and DESIGN listed seven.
+That is why the list is now code rather than prose in four places.
 
 ### 3E. The false-green table
 
@@ -115,6 +119,7 @@ this a rule rather than an intention.
 | 5 | Committed baseline absent | `BLOCKING` `BASELINE_ABSENT`, exit 3 |
 | 6 | A manifest that is not valid JSON or TOML | `BLOCKING` `MANIFEST_UNPARSED`, exit 3 |
 | 7 | Drift found AND a blocking gap present | exit 3, never 1, because the verdict is not trustworthy |
+| 8 | A directory the walk could not list | `BLOCKING` `UNREADABLE_DIR`, exit 3 |
 
 ### 3F. `derive` fills the six architect questions
 
@@ -190,9 +195,11 @@ what makes the dogfood runs read-only by construction.
 | # | Decision | Why |
 |---|---|---|
 | RT | **The round trip is the contract.** `derive` → save the draft unedited as `system.md` → `scan` → `reconcile` on the unchanged repo is exit 0, zero findings, and `test/round-trip.test.mjs` holds it on four repos | It failed on this repo's own fixture with exit 1 and 10 false findings. derive was only ever tested against its own output and the parser only against hand-written documents; nothing exercised the join |
-| RT-1 | Section headings live in **one** constant, `src/headings.mjs`, read by both `derive` and `declared` | The two ends disagreed about `## 4. What bills per use` and about whether the draft's H1 was a section. A shared table plus a test over it makes that class of bug red rather than silent |
+| RT-1 | Section headings live in one constant, `src/headings.mjs`, read by both `derive` and `declared` | The two ends disagreed about `## 4. What bills per use` and about whether the draft's H1 was a section. A shared table plus a test over it makes that class of bug red rather than silent |
 | RT-2 | A heading that names a section **exactly** beats one that merely mentions a keyword, and a `##` beats a `#`, decided over the whole document before any line is assigned | First-match-wins let the draft's title claim the map section out from under the real map heading |
 | RT-3 | **Section 5's vocabulary is whatever section 5 of a derived draft can contain**, schedules included | Otherwise the tool reports its own sentences back as findings |
+| B4 | A directory that cannot be **listed** is `BLOCKING UNREADABLE_DIR`, the eighth false-green row | It was skipped with no gap at all, so `chmod 000` on a subdirectory plus a baseline scanned in the same state reported "No drift" and exited 0 |
+| M2 | The gap codes live in `src/gaps.mjs` and nowhere else. `isBlockingCode` **throws** on an undeclared code | The list was written down four times and the four disagreed. A typo that silently downgraded a blocking gap to noted would turn a fail-closed tool into one that exits 0 on an unread repo |
 
 ## 5. The gate set
 

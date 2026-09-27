@@ -129,6 +129,18 @@ test('a baseline written by a schema this build does not know is BLOCKING, not a
   assert.equal(outcome.exitCode, 3);
 });
 
+test('row 8: a directory that could not be listed is BLOCKING UNREADABLE_DIR and exits 3', () => {
+  // Found by the ship-check, not by this table, which is the reason the table now has a row for it.
+  const outcome = run({
+    scan: healthyScan({
+      gaps: [{ tier: 'BLOCKING', code: 'UNREADABLE_DIR', path: 'src/hidden', cite: 'src/hidden', detail: 'EACCES' }],
+    }),
+  });
+
+  assert.deepEqual(codes(outcome), ['UNREADABLE_DIR']);
+  assert.equal(outcome.exitCode, 3);
+});
+
 // --- row 7, the tiering ------------------------------------------------------------------------------
 
 test('row 7: drift AND a blocking gap exits 3, never 1, because the verdict is not trustworthy', () => {
@@ -163,6 +175,7 @@ test('a NOTED gap alone never changes the exit code, or the tool would never ret
 test('no state in this table can produce exit 0', () => {
   const states = [
     { scan: healthyScan({ modules: [], gaps: [{ tier: 'BLOCKING', code: 'EMPTY_REPO', path: '.', cite: '.', detail: 'x' }] }) },
+    { scan: healthyScan({ gaps: [{ tier: 'BLOCKING', code: 'UNREADABLE_DIR', path: 'd', cite: 'd', detail: 'x' }] }) },
     { scan: healthyScan({ gaps: [{ tier: 'BLOCKING', code: 'UNREADABLE_FILE', path: 'a', cite: 'a:1', detail: 'x' }] }) },
     { declaredText: null },
     { declaredText: '# Notes\n' },
