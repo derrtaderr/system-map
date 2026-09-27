@@ -131,6 +131,14 @@ test('the same attribution appears in a reconcile finding', () => {
   });
 });
 
+test('an injected env read reads as one "via", not two', () => {
+  withRepo({ 'src/host.mjs': 'const k = env.MY_SECRET_KEY;\n' }, (root) => {
+    const draft = deriveDraft(scanRepo(root), { now: NOW, repoName: 'x' });
+    assert.ok(!draft.includes('via via'), draft.split('\n').find((line) => line.includes('via via')));
+    assert.match(draft, /read from the environment via an injected env object/);
+  });
+});
+
 // --- M9: a rename is one row -------------------------------------------------------------------------------------
 
 test('a renamed module is ONE drift row, not four', () => {
