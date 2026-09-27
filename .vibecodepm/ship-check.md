@@ -17,6 +17,17 @@ success_window: three real repos with a committed baseline and one reconcile rep
 
 # Ship-check, row 66 lane 1, `lane/row66-system-map-core` @ 18c2e41
 
+> **Fix wave 1 response, by the builder, 2026-09-27.** Every id below is addressed at
+> `503589b`, and this record is left intact rather than edited: a review that gets rewritten by the
+> party it graded is not a review. The response is the table at the bottom of this file, the PR body,
+> and `docs/SPEC.md` §4A, which records each contract decision with its reason.
+>
+> The headline: **THE round trip now holds.** `derive → save unedited → scan → reconcile` on the
+> unchanged fixture was exit 1 with 10 false findings and is exit 0 with zero, held by
+> `test/round-trip.test.mjs` across seven repos. 422 tests, up from 312. This was the only wave, by
+> the declared stop rule.
+
+
 Reviewer `row66_reviewer`, independent of the builder. flow.md and metrics.md are both `status: accepted`.
 
 ## Verdict
@@ -94,3 +105,48 @@ metrics.md declares no telemetry by design; every number is read off artifacts. 
 ## Security surface
 
 No egress, no key, no network. A real `.env` is never opened (filename guard). The scan follows file symlinks outside the repo (minor above); only matched tokens reach output. `--out` resolves against cwd so a scan of another repo cannot write into it (verified). Fail direction: seven blocking states fail closed; an unlistable directory does not (B4).
+
+
+---
+
+## Fix wave 1 response (builder, 503589b)
+
+One line per id. Fixed means a named test holds it; the reason is in `docs/SPEC.md` §4A.
+
+| id | state | where |
+|---|---|---|
+| B1 | fixed | `test/round-trip.test.mjs` "the round trip reads the draft's own map, not its title" — section ownership decided over the whole document, canonical heading beats keyword, `##` beats `#` |
+| B2 | fixed | same file, "the round trip finds the bill section derive actually writes" — plus `src/headings.mjs`, one table read by both ends |
+| B3 | fixed | same file, "a schedule derive wrote into section 5 is not reported as a vanished surface" |
+| B4 | fixed | `test/scan.test.mjs` "a directory that cannot be LISTED is a BLOCKING UNREADABLE_DIR", and false-green row 8 |
+| B5 | fixed | `test/cli.test.mjs` "reconcile ../repo reads THAT repo's system.md and baseline" + "names the three inputs it read" |
+| I1 | fixed | `test/cli.test.mjs` "derive refuses a path that differs from system.md only in case" |
+| I2 (D1) | fixed | `test/extract-posture2.test.mjs`, D1 block. 1, 6 and 5 state rows on the three dogfood repos |
+| I3 (D3) | fixed | same file, D3 block. landed's `LANDED_N8N_API_KEY` is now a credential row |
+| I4 (D2) | fixed | same file, D2 block. `gh` and `git` appear as external edges and section-4 rows |
+| I5 (D5) | fixed | `test/pieces.test.mjs`, D5 block, including a round trip on the monorepo |
+| I6 (D4) | fixed | same file, D4 block. job-radar's 48 test files are counted and excluded |
+| I7 | fixed | `test/declared.test.mjs` + `test/reconcile.test.mjs` prose blocks. The reviewer's map: 11 findings with 4 false → 7 findings, 0 false |
+| I8 | fixed | `test/cli.test.mjs` "derive prints the Unknown ratio". All three repos now inside the 10–40 band (27%, 36%, 32%) where they were 40/41/43 |
+| I9 | fixed | `test/cli.test.mjs` "a first-run gap names the command that fixes it" |
+| I10 (D6) | fixed | `test/cli.test.mjs` "a second scan refuses to replace a committed baseline without --reagree" |
+| M1, M2 | fixed | `test/spec-claims.test.mjs` — the file SPEC named and which did not exist, now checking one gap-code list against SPEC, DESIGN, README and the source |
+| M3 | fixed | `test/cli.test.mjs` "the report echoes no absolute path" |
+| M4 | fixed | `test/cli.test.mjs` "a second reconcile on the same day does not overwrite the first" |
+| M5 | fixed | `test/extract-posture2.test.mjs` "process.env.X inside a string or a template literal is not an env read" |
+| M6 | fixed | `test/minors.test.mjs` symlink and size blocks |
+| M7 | fixed | `test/minors.test.mjs` importlib, TYPE_CHECKING and router-prefix rows |
+| M8 | fixed | `test/minors.test.mjs` "a registry note is labelled as the registry's claim" |
+| M9 | fixed | `test/minors.test.mjs` rename block. One row, paired on a content hash |
+| M10 | fixed | `test/cli.test.mjs` "a refusal prints one sentence and points at --help" |
+
+Two things the advocate noticed that are NOT fixed, and are follow-ups rather than silence: a
+database URL is classed configuration rather than a key (`CONNECTION_ENV` puts it in section 2,
+`SECRETISH` does not put it in section 3), and the registry has no web-framework category so
+`express` never appears in the map while `stripe` does. Both are registry and classification
+questions rather than defects in the join, and neither was in this wave's scope.
+
+One defect found DURING the wave, by round-tripping the reviewer's own scratch repos rather than this
+repo's fixtures: derive wrote `` `A` `` into section 3 and the parser's env-name shape required two
+characters, so the tool reported its own sentence back as a finding. Recorded as SPEC §4A row RT-4.
+It is the same class as B1 and B2, which is the argument for the round-trip test existing at all.
