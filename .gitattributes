@@ -1,0 +1,17 @@
+# Line endings are part of this repo's contract, not a preference.
+#
+# test/readme.test.mjs asserts the README's console blocks equal the CLI's real stdout line
+# for line, and test/demo.test.mjs does the same for the demo's three artifacts. On a clone
+# made with core.autocrlf=true those comparisons fail for a reason that has nothing to do
+# with the change under review. Checking these in is what makes a byte comparison mean the
+# same thing on every machine.
+
+* text=auto eol=lf
+
+*.md   text eol=lf
+*.json text eol=lf
+*.mjs  text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.toml text eol=lf
+*.txt  text eol=lf

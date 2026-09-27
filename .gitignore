@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+
+# The tool's own output when it is run against this repo. The fixture repo's .system-map/
+# is tracked on purpose (it is the committed baseline the demo reconciles against), which is
+# why this pattern is anchored to the root.
+/.system-map/
+/.vibecodepm/system.draft.md

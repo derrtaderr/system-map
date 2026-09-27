@@ -1,0 +1,19 @@
+{
+  "name": "system-map",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Derive a cited system.md from an agent-built repo, and reconcile the declared design against the code.",
+  "type": "module",
+  "bin": {
+    "system-map": "./bin/system-map.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "privacy": "node scripts/privacy-guard.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
