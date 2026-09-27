@@ -215,3 +215,44 @@ test('a level-1 heading is still a section when no deeper heading claims that ke
   assert.ok(declared.sections.map !== null);
   assert.deepEqual(declared.pieces.map((piece) => piece.name), ['App']);
 });
+
+// --- the round trip and the env-name shape must agree ---------------------------------------------------
+//
+// Found by running the round trip over a reviewer's scratch repo: derive wrote `` `A` `` into the doors
+// section and the parser's env-name shape required two characters, so the tool reported its own sentence
+// back as "an env var section 3 never lists". Same class as B1 and B2 — one end writing a vocabulary the
+// other cannot read — and the fix is the same in spirit: reconcile compares against every backticked
+// token in section 3, so there is no shape for the two ends to disagree about.
+
+test('THE round trip survives a one-character environment variable', () => {
+  withRepo({ 'app/main.py': ['import os', '', "A = os.environ['A']", ''].join('\n') }, (root) => {
+    const { outcome } = roundTrip(root);
+    assert.deepEqual(findings(outcome), []);
+    assert.equal(outcome.exitCode, 0);
+  });
+});
+
+test('THE round trip survives a camelCase environment variable', () => {
+  withRepo({ 'src/a.mjs': 'const mode = process.env.nodeEnv;\n' }, (root) => {
+    const { outcome } = roundTrip(root);
+    assert.deepEqual(findings(outcome), []);
+  });
+});
+
+test('THE round trip survives a variable with digits and a trailing underscore', () => {
+  withRepo({ 'src/a.mjs': 'process.env.S3_BUCKET_2;\nprocess.env._INTERNAL;\n' }, (root) => {
+    const { outcome } = roundTrip(root);
+    assert.deepEqual(findings(outcome), []);
+  });
+});
+
+test('a variable the doors section genuinely omits is still a finding', () => {
+  // The guard on all of the above: the section is only forgiving about SHAPE, never about absence.
+  withRepo({ 'src/a.mjs': 'process.env.A;\nprocess.env.SECRET_TOKEN;\n' }, (root) => {
+    const scan = scanRepo(root);
+    const declared = ['## 1. The map', '', '- **src** (`src/a.mjs`) — it.', '', '## 3. Doors and keys', '', 'Only `A`.', ''].join('\n');
+    const outcome = reconcile({ scan, declaredText: declared, committedBaseline: scan, now: NOW });
+
+    assert.deepEqual(outcome.sections.undeclaredEnv.map((finding) => finding.id), ['SECRET_TOKEN']);
+  });
+});

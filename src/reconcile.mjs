@@ -195,7 +195,12 @@ function undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf, codeM
 }
 
 function undeclaredEnv(scan, declared) {
-  const listed = new Set(declared.doors.envNames.map((name) => name.toUpperCase()));
+  // EVERY backticked token in section 3, not only the ones matching an env-name SHAPE. derive writes the
+  // variable names the scan found, whatever they look like, and a parser that only recognised
+  // SCREAMING_SNAKE of two or more characters reported `A` and `nodeEnv` back as variables the section
+  // never lists. There is now no shape for the two ends to disagree about: if section 3 backticks the
+  // name, the name is declared. docs/SPEC.md §4A row RT-4.
+  const listed = new Set(declared.doors.names.map((name) => name.toUpperCase()));
 
   return scan.env
     .filter((entry) => !listed.has(entry.name.toUpperCase()))
