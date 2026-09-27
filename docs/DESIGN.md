@@ -157,7 +157,12 @@ this tool exists to surface, and counting it as present would hide the thing we 
 
 Named here so a stranger is not surprised, and so a gap is never mistaken for an absence.
 
-- **Dynamic imports** whose specifier is computed. Reported as `NOTED DYNAMIC_SPECIFIER`.
+- **Dynamic imports** whose specifier is computed. Reported as `NOTED DYNAMIC_SPECIFIER`, and
+  `importlib.import_module(name)` as `NOTED DYNAMIC_IMPORT_MODULE`.
+- **A file over 2 MB**, skipped with `NOTED FILE_TOO_LARGE`: a source file that big is generated,
+  minified or vendored, whatever directory it sits in.
+- **A symlink resolving outside the repo**, skipped with `NOTED SYMLINK_OUTSIDE_REPO`. A file outside the
+  repository is not part of it, whatever a link inside says. A symlink within the repo is followed.
 - **Reflection, runtime registries, monkey patching.** A piece wired up at runtime looks like a piece
   nothing imports.
 - **Generated code and build output.** `dist/`, `.next/`, `build/` and friends are not walked.

@@ -41,9 +41,26 @@ function nodeRoutes(path, masked) {
   return routes;
 }
 
+// `APIRouter(prefix="/api/v2")` means every route on that router serves a path the decorator does not
+// spell. A map that printed `/leads` names a path nobody can call.
+function routerPrefixes(lines) {
+  const prefixes = new Map();
+
+  for (const line of lines) {
+    const match = /\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:APIRouter|Blueprint)\s*\(([^)]*)\)/.exec(line);
+    if (match === null) continue;
+
+    const prefix = /prefix\s*=\s*(['"])([^'"]*)\1/.exec(match[2]);
+    if (prefix !== null && prefix[2] !== '') prefixes.set(match[1], prefix[2].replace(/\/$/, ''));
+  }
+
+  return prefixes;
+}
+
 function pythonRoutes(path, masked) {
   const routes = [];
   const lines = masked.split('\n');
+  const prefixes = routerPrefixes(lines);
 
   for (let index = 0; index < lines.length; index += 1) {
     const match = PY_DECORATOR.exec(lines[index]);
@@ -53,9 +70,10 @@ function pythonRoutes(path, masked) {
     if (!PY_RECEIVERS.has(receiver)) continue;
 
     const framework = `@${receiver}.${verb}`;
+    const full = `${prefixes.get(receiver) ?? ''}${routePath}`;
 
     if (verb !== 'route') {
-      routes.push({ method: verb.toUpperCase(), path: routePath, framework, line: index + 1 });
+      routes.push({ method: verb.toUpperCase(), path: full, framework, line: index + 1 });
       continue;
     }
 
@@ -66,7 +84,7 @@ function pythonRoutes(path, masked) {
       : [...declared[1].matchAll(/['"]([A-Za-z]+)['"]/g)].map((entry) => entry[1].toUpperCase());
 
     for (const method of methods.length === 0 ? ['GET'] : methods) {
-      routes.push({ method, path: routePath, framework, line: index + 1 });
+      routes.push({ method, path: full, framework, line: index + 1 });
     }
   }
 

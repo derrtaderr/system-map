@@ -4,7 +4,7 @@
 // part of the system, and record every file it decided to open but could not. An unread file is
 // not an empty file, and the difference is BLOCKING.
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 import { isIgnoredPath, isManifestPath, IGNORED_SEGMENTS } from './extract/manifests.mjs';
@@ -35,6 +35,10 @@ const PLIST = /\.plist$/;
 // Dot directories are skipped wholesale except the ones that carry the system's own configuration.
 const DOT_DIRS_KEPT = new Set(['.github', '.vibecodepm', '.system-map']);
 
+// A source file this big is generated, minified or vendored, whatever directory it sits in. A 21.7 MB
+// bundle outside `dist/` became a module, a piece, and a 3.4 second scan.
+export const MAX_FILE_BYTES = 2 * 1024 * 1024;
+
 export function shouldRead(path) {
   if (isIgnoredPath(path)) return false;
   if (isLiveEnvFile(path) && !isEnvExample(path)) return false;
@@ -46,9 +50,20 @@ export function shouldRead(path) {
   return false;
 }
 
+const noted = (code, path, detail) => ({ tier: 'NOTED', code, path, line: 1, cite: path, detail });
+
 export function walkFiles(root) {
   const files = [];
   const gaps = [];
+
+  // Resolved once: a repo reached through a symlink (a worktree, /tmp on macOS) would otherwise make
+  // every file inside it look like it resolves outside.
+  let realRoot = root;
+  try {
+    realRoot = realpathSync(root);
+  } catch {
+    realRoot = root;
+  }
 
   const descend = (dir) => {
     let entries;
@@ -80,6 +95,42 @@ export function walkFiles(root) {
         if (entry.name.startsWith('.') && !DOT_DIRS_KEPT.has(entry.name)) continue;
         descend(full);
         continue;
+      }
+
+      // A file outside the repo is not part of the repo, whatever a link inside it says. The scan read
+      // `src/passwd.mjs -> /etc/passwd` and listed it as a module.
+      if (entry.isSymbolicLink()) {
+        let resolved;
+        try {
+          resolved = realpathSync(full);
+        } catch {
+          gaps.push(noted('SYMLINK_OUTSIDE_REPO', rel, `the symlink at ${rel} resolves to nothing, so it was skipped`));
+          continue;
+        }
+
+        const inside = relative(realRoot, resolved).split(sep).join('/');
+        if (inside.startsWith('..') || inside === '') {
+          gaps.push(noted('SYMLINK_OUTSIDE_REPO', rel, `${rel} is a symlink resolving outside this repository, so it was skipped rather than read as part of the system`));
+          continue;
+        }
+
+        try {
+          if (statSync(full).isDirectory()) {
+            descend(full);
+            continue;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      try {
+        if (statSync(full).size > MAX_FILE_BYTES) {
+          gaps.push(noted('FILE_TOO_LARGE', rel, `${rel} is larger than ${MAX_FILE_BYTES} bytes, so it was skipped: a source file that big is generated, minified or vendored`));
+          continue;
+        }
+      } catch {
+        // An unstattable file is reported when the read fails, which is the next thing that happens.
       }
 
       files.push(rel);

@@ -6,6 +6,8 @@
 // part of the scan: a timestamp inside the scan would make every diff dirty and the baseline
 // worthless as a reference point.
 
+import { createHash } from 'node:crypto';
+
 import { readRepo, isTestPath } from './walk.mjs';
 import { resolveEdges } from './resolve.mjs';
 import { languageOf } from './extract/text.mjs';
@@ -71,9 +73,15 @@ export function scanRepo(root, { includeTests = false } = {}) {
     const isTest = language !== null && !includeTests && isTestPath(path);
     if (isTest) testFiles.push(path);
 
-    if (language !== null && !isTest) modules.push({ path, language, cite: `${path}:1` });
-
     const text = contents.get(path);
+
+    if (language !== null && !isTest) {
+      // The hash is what makes a rename one drift row instead of four. Short on purpose: a baseline is
+      // read by people, and 12 hex characters is enough to pair a moved file within one repo.
+      const contentHash = text === undefined ? null : createHash('sha256').update(text).digest('hex').slice(0, 12);
+      modules.push({ path, language, contentHash, cite: `${path}:1` });
+    }
+
     if (text === undefined || isTest) continue;
 
     if (isManifestPath(path)) {

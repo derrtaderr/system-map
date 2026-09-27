@@ -21,6 +21,11 @@ import { ARCHITECT_HEADINGS as HEADINGS, GAP_HEADING, DRAFT_TITLE } from './head
 export { ARCHITECT_HEADINGS } from './headings.mjs';
 
 // The two line shapes. Nothing else may reach the page.
+//
+// A note that begins "registry:" is a claim from src/registry.mjs, not something the cited line shows.
+// The cited line shows an IMPORT; "charges per API call and settles real money" is a judgement written
+// down once in the table, and printing it bare at the import citation made the citation look like its
+// evidence. docs/SPEC.md §4A row M8.
 const cited = (text, cite) => `- ${text} (${cite})`;
 const unknown = (text) => `- Unknown: ${text}`;
 
@@ -61,7 +66,7 @@ function theMap(scan) {
 
   // External dependencies belong in the map: a piece that calls out is a piece with an outside edge.
   for (const client of scan.clients) {
-    lines.push(cited(`${pieceOf(client.cites[0] ?? '')} → \`${client.name}\`, outside this repo — ${client.note}`, client.cite));
+    lines.push(cited(`${pieceOf(client.cites[0] ?? '')} → \`${client.name}\`, outside this repo — registry: ${client.note}`, client.cite));
   }
   for (const host of scan.hosts) {
     lines.push(cited(`${pieceOf(host.path ?? '')} → \`${host.host}\`, over HTTP via ${host.via}`, host.cite));
@@ -91,7 +96,7 @@ function whereStateLives(scan) {
   const lines = [];
 
   for (const client of scan.clients.filter((candidate) => candidate.categories.includes('state'))) {
-    lines.push(cited(`\`${client.name}\` — ${client.note}`, client.cite));
+    lines.push(cited(`\`${client.name}\` — registry: ${client.note}`, client.cite));
   }
 
   for (const entry of scan.env.filter((candidate) => CONNECTION_ENV.test(candidate.name))) {
@@ -153,7 +158,7 @@ function whatBills(scan) {
   const metered = scan.clients.filter((client) => client.categories.includes('metered'));
 
   for (const client of metered) {
-    lines.push(cited(`\`${client.name}\` — ${client.note}`, client.cite));
+    lines.push(cited(`\`${client.name}\` — registry: ${client.note}`, client.cite));
   }
 
   for (const host of scan.hosts) {
