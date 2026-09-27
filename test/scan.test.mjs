@@ -120,6 +120,35 @@ test('a file that cannot be read is a BLOCKING UNREADABLE_FILE naming the file',
   });
 });
 
+test('a directory that cannot be LISTED is a BLOCKING UNREADABLE_DIR, not a silent skip', () => {
+  // False-green row 8, and the one the ship-check found by hand. An unlistable directory used to be
+  // skipped with no gap at all, so `chmod 000 src/hidden` plus a baseline scanned in the same state
+  // reported "No drift" and exited 0. A directory we could not open is not an empty directory.
+  withRepo({ 'src/a.mjs': '', 'src/hidden/secret.mjs': "import 'stripe';\n" }, (root) => {
+    const hidden = join(root, 'src/hidden');
+    chmodSync(hidden, 0o000);
+    try {
+      const baseline = scanRepo(root);
+      assert.deepEqual(gapRows(baseline).filter((row) => row.includes('UNREADABLE_DIR')), ['BLOCKING UNREADABLE_DIR src/hidden']);
+      assert.equal(baseline.counts.blockingGaps, 1);
+    } finally {
+      chmodSync(hidden, 0o755);
+    }
+  });
+});
+
+test('the repo root itself being unlistable is the same BLOCKING gap, named as the root', () => {
+  withRepo({ 'src/a.mjs': '' }, (root) => {
+    chmodSync(root, 0o000);
+    try {
+      const baseline = scanRepo(root);
+      assert.ok(baseline.gaps.some((gap) => gap.code === 'UNREADABLE_DIR'), JSON.stringify(gapRows(baseline)));
+    } finally {
+      chmodSync(root, 0o755);
+    }
+  });
+});
+
 // --- edge resolution ------------------------------------------------------------------------------
 
 test('a relative node specifier resolves to the module it names', () => {

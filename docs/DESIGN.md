@@ -172,9 +172,12 @@ has one unresolvable dynamic import and `reconcile` would exit 3 forever, so nob
 twice. If no gap were blocking, a reconcile against a `system.md` nobody could read would find zero
 findings and exit clean, and the report would say the design and the code agree.
 
-`BLOCKING`, exhaustively: `EMPTY_REPO`, `UNREADABLE_FILE`, `MANIFEST_UNPARSED`, `SYSTEM_MD_ABSENT`,
-`SYSTEM_MD_UNPARSEABLE`, `BASELINE_ABSENT`, `BASELINE_SCHEMA_UNKNOWN`. Each one is a row in the
-false-green table in `docs/SPEC.md` §3E, and `test/false-green.test.mjs` is what makes it a rule.
+`BLOCKING` is the list in `src/gaps.mjs`, and nothing else may be: `EMPTY_REPO`, `UNREADABLE_FILE`,
+`UNREADABLE_DIR`, `MANIFEST_UNPARSED`, `SYSTEM_MD_ABSENT`, `SYSTEM_MD_UNPARSEABLE`, `BASELINE_ABSENT`,
+`BASELINE_SCHEMA_UNKNOWN`. Each one is a row in the false-green table in `docs/SPEC.md` §3E, and
+`test/false-green.test.mjs` is what makes it a rule. `UNREADABLE_DIR` was added in fix wave 1: a
+directory the walk could not list was skipped with no gap, so `chmod 000` on a subdirectory reported
+"No drift".
 
 ## Reading a declared system.md
 

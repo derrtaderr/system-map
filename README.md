@@ -194,18 +194,20 @@ a scheduler reads only the number.
 ## Green is earned
 
 A drift detector that reports nothing when it read nothing is worse than no drift detector, because
-it is reassuring. Seven states make a run untrustworthy, each one a blocking gap named in the report
-and an exit 3:
+it is reassuring. Eight states make a run untrustworthy, each one a blocking gap named in the report and an exit 3:
 
 | Code | The state |
 |---|---|
 | `EMPTY_REPO` | no source file was found |
 | `UNREADABLE_FILE` | a file the walk named would not open |
+| `UNREADABLE_DIR` | a directory the walk could not list, so nothing can say what was inside it |
 | `MANIFEST_UNPARSED` | a `package.json` or `pyproject.toml` that would not parse |
 | `SYSTEM_MD_ABSENT` | there is no declared design to reconcile against |
 | `SYSTEM_MD_UNPARSEABLE` | there is one, and no section of it could be read |
 | `BASELINE_ABSENT` | no committed baseline, so nothing can say what moved |
 | `BASELINE_SCHEMA_UNKNOWN` | the baseline was written by a version this build does not read |
+
+That is eight states, and the list lives in `src/gaps.mjs` so this table cannot drift from it.
 
 `SYSTEM_MD_UNPARSEABLE` is the dangerous one. A reconcile against a document nobody could read finds
 zero findings, and zero findings reads as agreement. `test/false-green.test.mjs` is what makes all
