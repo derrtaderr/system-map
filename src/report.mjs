@@ -25,6 +25,20 @@ export function renderReconcile(outcome, { now }) {
 
   lines.push(`# system-map reconcile — ${dayOf(now)}`);
   lines.push('');
+
+  // What this run read, before anything it concluded. A report that does not name its inputs cannot be
+  // told apart from one that read the wrong ones, which is exactly what happened: `reconcile ../repo`
+  // compared one repo's code against another project's design and the report looked entirely normal.
+  if (outcome.inputs.length > 0) {
+    lines.push('## What this run read');
+    lines.push('');
+    for (const input of outcome.inputs) {
+      const size = input.bytes === null ? '' : ` — ${input.bytes} bytes`;
+      lines.push(`- **${input.label}** \`${input.path}\`${size}${input.present ? '' : ' — **not found**'}`);
+    }
+    lines.push('');
+  }
+
   lines.push(
     outcome.verdict === 'cannot-judge'
       ? 'This run could not read enough to judge. The sections below are incomplete, and the gaps are named at the bottom.'

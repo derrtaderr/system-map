@@ -199,6 +199,11 @@ what makes the dogfood runs read-only by construction.
 | RT-2 | A heading that names a section **exactly** beats one that merely mentions a keyword, and a `##` beats a `#`, decided over the whole document before any line is assigned | First-match-wins let the draft's title claim the map section out from under the real map heading |
 | RT-3 | **Section 5's vocabulary is whatever section 5 of a derived draft can contain**, schedules included | Otherwise the tool reports its own sentences back as findings |
 | B4 | A directory that cannot be **listed** is `BLOCKING UNREADABLE_DIR`, the eighth false-green row | It was skipped with no gap at all, so `chmod 000` on a subdirectory plus a baseline scanned in the same state reported "No drift" and exited 0 |
+| B5 | **An input default resolves against `[path]`; an explicit `--system` or `--baseline` against the working directory.** Every run names the three inputs it read, with sizes, on stdout and in a `## What this run read` report header | §3K's write rule and the read rule point in opposite directions, and conflating them made `reconcile ../repo` compare one repo's code against another project's design, exit 1, and look entirely normal |
+| M3 | A path reaching output is repo-relative or a basename, never absolute | A report is meant to be committed and must not carry a home directory because the caller typed one |
+| M4 | A same-day rerun writes `-2`, `-3`, … rather than overwriting | The report that found something could be erased by the one that did not |
+| I9 | Every first-run blocking gap names the verb that fixes it | `flow.md`'s "Recovery paths" promised it; the gap named the file and left the reader to guess the command |
+| M10 | A refusal is one sentence plus a pointer to `--help` | `flow.md` says one sentence. It was one sentence plus forty-five lines of usage, which buries the sentence that matters |
 | M2 | The gap codes live in `src/gaps.mjs` and nowhere else. `isBlockingCode` **throws** on an undeclared code | The list was written down four times and the four disagreed. A typo that silently downgraded a blocking gap to noted would turn a fail-closed tool into one that exits 0 on an unread repo |
 
 ## 5. The gate set

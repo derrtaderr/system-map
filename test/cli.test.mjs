@@ -301,6 +301,111 @@ test('reconcile never writes into the repo it is judging when --out points elsew
   });
 });
 
+// --- B5: reconcile reads the repo it was pointed at, and says what it read -------------------------
+
+test('reconcile ../repo reads THAT repo’s system.md and baseline, not the working directory’s', () => {
+  // The ship-check's sharpest find. Run from a project that has its own system.md and baseline, this
+  // compared repo A's code against project B's design and exited 1 with six plausible findings, naming
+  // neither input. A wrong answer that looks right is worse than a refusal.
+  withSandbox({
+    '.vibecodepm/system.md': ['## 1. The map', '', '- **Elsewhere** (`elsewhere/x.mjs`) — not this repo at all.', ''].join('\n'),
+    '.system-map/baseline.json': JSON.stringify({ schema: 'system-map/baseline@1', modules: [{ path: 'elsewhere/x.mjs' }] }),
+  }, (other) => {
+    withSandbox({ ...A_REPO, '.vibecodepm/system.md': DECLARED }, (repo) => {
+      assert.equal(run(['scan', repo, '--out', join(repo, '.system-map/baseline.json'), '--now', NOW], { cwd: other }).code, 0);
+
+      const result = run(['reconcile', repo, '--out', 'reports', '--now', NOW], { cwd: other });
+      assert.equal(result.code, 0, `should have read ${repo}'s own inputs and found nothing:\n${result.stdout}${result.stderr}`);
+      assert.ok(!result.stdout.includes('Elsewhere'), 'the sibling project’s design was not consulted');
+    });
+  });
+});
+
+test('reconcile names the three inputs it read, on stdout and in the report header', () => {
+  withSandbox({ ...A_REPO, '.vibecodepm/system.md': DECLARED }, (root) => {
+    assert.equal(run(['scan', '--now', NOW], { cwd: root }).code, 0);
+    const result = run(['reconcile', '--now', NOW], { cwd: root });
+
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    for (const label of ['code', 'system.md', 'baseline']) {
+      assert.match(result.stdout, new RegExp(label), `stdout names the ${label} input`);
+    }
+
+    const report = readFileSync(join(root, '.system-map/reconcile-2026-09-27.md'), 'utf8');
+    assert.match(report, /## What this run read/);
+    assert.match(report, /system\.md/);
+    assert.match(report, /\b\d+ bytes\b/, 'with a size, so two runs on one day are distinguishable');
+  });
+});
+
+test('an explicit --system still wins over the default, resolved against the working directory', () => {
+  withSandbox({}, (out) => {
+    withSandbox({ ...A_REPO, '.vibecodepm/system.md': DECLARED }, (repo) => {
+      assert.equal(run(['scan', repo, '--out', 'base.json', '--now', NOW], { cwd: out }).code, 0);
+      const result = run(
+        ['reconcile', repo, '--system', join(repo, '.vibecodepm/system.md'), '--baseline', 'base.json', '--out', 'reports', '--now', NOW],
+        { cwd: out },
+      );
+      assert.equal(result.code, 0, result.stdout + result.stderr);
+    });
+  });
+});
+
+test('the report echoes no absolute path for an explicitly given --system or --baseline', () => {
+  // M3, the same class as the derived_from bug: a report meant to be committed must not carry a home
+  // directory just because the caller typed one.
+  withSandbox({}, (out) => {
+    withSandbox({ ...A_REPO, '.vibecodepm/system.md': DECLARED }, (repo) => {
+      run(['scan', repo, '--out', 'base.json', '--now', NOW], { cwd: out });
+      run(['reconcile', repo, '--system', join(repo, '.vibecodepm/system.md'), '--baseline', 'base.json', '--out', 'reports', '--now', NOW], { cwd: out });
+
+      const report = readFileSync(join(out, 'reports/reconcile-2026-09-27.md'), 'utf8');
+      assert.ok(!report.includes(repo), 'the absolute repo path is not echoed');
+      assert.ok(!/\/Users\/|\/var\/folders\//.test(report), report.split('\n').slice(0, 14).join('\n'));
+    });
+  });
+});
+
+test('a second reconcile on the same day does not overwrite the first', () => {
+  // M4. Two runs on one day silently overwrote each other, so the run that found something could be
+  // erased by the run that did not.
+  withSandbox({ ...A_REPO, '.vibecodepm/system.md': DECLARED }, (root) => {
+    run(['scan', '--now', NOW], { cwd: root });
+    assert.equal(run(['reconcile', '--now', NOW], { cwd: root }).code, 0);
+    assert.equal(run(['reconcile', '--now', NOW], { cwd: root }).code, 0);
+
+    assert.deepEqual(readdirSync(join(root, '.system-map')).sort(), [
+      'baseline.json',
+      'reconcile-2026-09-27-2.md',
+      'reconcile-2026-09-27.md',
+    ]);
+  });
+});
+
+test('a first-run gap names the command that fixes it', () => {
+  // I9, promised by flow.md's "Recovery paths" and absent.
+  withSandbox(A_REPO, (root) => {
+    const result = run(['reconcile', '--now', NOW], { cwd: root });
+    assert.equal(result.code, 3);
+
+    const report = readFileSync(join(root, '.system-map/reconcile-2026-09-27.md'), 'utf8');
+    assert.match(report, /system-map derive/, 'the absent system.md names derive');
+    assert.match(report, /system-map scan/, 'the absent baseline names scan');
+  });
+});
+
+test('a refusal prints one sentence and points at --help, not the whole usage', () => {
+  // M10. flow.md says one sentence; the stranger got a sentence plus 45 lines.
+  withSandbox(A_REPO, (root) => {
+    const result = run(['scan', '--verbose'], { cwd: root });
+    assert.equal(result.code, 2);
+
+    const lines = result.stderr.trim().split('\n').filter((line) => line !== '');
+    assert.ok(lines.length <= 2, `refusal was ${lines.length} lines:\n${result.stderr}`);
+    assert.match(result.stderr, /--help/);
+  });
+});
+
 // --- the clock ---------------------------------------------------------------------------------------------
 
 test('--now must be an ISO instant, because a bad one silently misdates a report', () => {
