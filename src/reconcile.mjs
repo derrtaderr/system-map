@@ -55,13 +55,15 @@ const STOPWORDS = new Set([
 // because `charges` and `cards` are the third and fourth words.
 const NAME_WORDS_CONSIDERED = 2;
 
-function candidateTokens(name) {
+// `keep` is the code piece being matched: a stopword that IS a piece name (`core/`, `app/`, `main.py`) is
+// never stripped, or a correct map describing "the core module" reports core as unnamed (ship-check N4).
+function candidateTokens(name, keep = null) {
   const whole = normalise(name);
   const words = String(name)
     .split(/[^A-Za-z0-9]+/)
     .filter((word) => word !== '')
     .slice(0, NAME_WORDS_CONSIDERED)
-    .filter((word) => !STOPWORDS.has(word.toLowerCase()));
+    .filter((word) => !STOPWORDS.has(word.toLowerCase()) || (keep !== null && normalise(word) === keep));
 
   return [...new Set([whole, ...words.map((word) => normalise(word))])].filter((token) => token.length >= 3);
 }
@@ -71,7 +73,7 @@ function namesTheSameThing(declaredName, codePiece) {
   const target = normalise(codePiece);
   const targetStem = stemWord(codePiece);
 
-  for (const token of candidateTokens(declaredName)) {
+  for (const token of candidateTokens(declaredName, target)) {
     if (token === target) return true;
     if (stemWord(token) === targetStem && targetStem.length >= 4) return true;
   }
