@@ -12,14 +12,12 @@ import { parseDeclared } from './declared.mjs';
 import { computeDelta, DELTA_KINDS } from './delta.mjs';
 import { BASELINE_SCHEMA } from './scan.mjs';
 import { renderReconcile } from './report.mjs';
+import { pieceResolver } from './pieces.mjs';
 
-// A code piece is the top-level directory a module sits in, or the file itself when it sits at the
-// root. Reporting every unnamed MODULE in a two-hundred-file repo is noise nobody reads; reporting
-// every unnamed top-level group is a list somebody acts on.
-export function pieceOf(modulePath) {
-  const slash = modulePath.indexOf('/');
-  return slash === -1 ? modulePath : modulePath.slice(0, slash);
-}
+// Piece classification lives in src/pieces.mjs, because derive and reconcile have to agree about it
+// exactly or the round trip reports the tool's own map back as findings. Kept as a named export here
+// for the callers that had it.
+export { pieceOfPath, pieceResolver, piecesOf } from './pieces.mjs';
 
 function normalise(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -34,7 +32,7 @@ function stem(modulePath) {
 // Which declared pieces answer to which code pieces. A declared piece matches on a path it cites,
 // on its own name, or on the name of any module inside the piece, because a hand-written map says
 // "the worker" and demanding a backticked path would teach people to write maps the tool's way.
-function matchPieces(declaredPieces, modules) {
+function matchPieces(declaredPieces, modules, pieceOf) {
   const codePieces = new Map();
   for (const module of modules) {
     const piece = pieceOf(module.path);
@@ -48,11 +46,14 @@ function matchPieces(declaredPieces, modules) {
   for (const declared of declaredPieces) {
     const wanted = normalise(declared.name);
     const declaredRoots = new Set(declared.paths.map((path) => pieceOf(path.replace(/^\.\//, '').replace(/\/$/, ''))));
+    // A map that names a piece by its own name (`packages/api`) rather than by a file inside it.
+    const declaredAsPiece = normalise(declared.name);
 
     for (const [piece, paths] of codePieces) {
       const matches =
         declaredRoots.has(piece) ||
         normalise(piece) === wanted ||
+        normalise(piece) === declaredAsPiece ||
         paths.some((path) => normalise(stem(path)) === wanted);
 
       if (!matches) continue;
@@ -82,7 +83,7 @@ function unnamedPieces(codePieces, namedBy) {
   return findings;
 }
 
-function undeclaredEdges(scan, declared, namedBy, declaredToCode) {
+function undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf) {
   // The declared edge set, as pairs of CODE pieces.
   const allowed = new Set();
   for (const edge of declared.edges) {
@@ -281,11 +282,12 @@ export function reconcile({ scan, declaredText, committedBaseline, now = new Dat
   }
 
   // --- the six sections ------------------------------------------------------------------------
-  const { codePieces, namedBy, declaredToCode } = matchPieces(declared.pieces, scan.modules ?? []);
+  const pieceOf = pieceResolver(scan);
+  const { codePieces, namedBy, declaredToCode } = matchPieces(declared.pieces, scan.modules ?? [], pieceOf);
 
   const sections = {
     unnamedPieces: declaredUsable ? unnamedPieces(codePieces, namedBy) : [],
-    undeclaredEdges: declaredUsable ? undeclaredEdges(scan, declared, namedBy, declaredToCode) : [],
+    undeclaredEdges: declaredUsable ? undeclaredEdges(scan, declared, namedBy, declaredToCode, pieceOf) : [],
     undeclaredEnv: declaredUsable ? undeclaredEnv(scan, declared) : [],
     unpricedClients: declaredUsable ? unpricedClients(scan, declared) : [],
     vanishedSurfaces: declaredUsable ? vanishedSurfaces(scan, declared, delta, systemPath) : [],

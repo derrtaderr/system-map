@@ -429,6 +429,7 @@
       "alsoAt": []
     }
   ],
+  "testFiles": [],
   "gaps": [
     {
       "tier": "NOTED",
@@ -450,6 +451,7 @@
     "schedules": 3,
     "observability": 6,
     "authChecks": 3,
+    "testFiles": 0,
     "gaps": 1,
     "blockingGaps": 0
   },

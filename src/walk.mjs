@@ -11,6 +11,24 @@ import { isIgnoredPath, isManifestPath, IGNORED_SEGMENTS } from './extract/manif
 import { isEnvExample, isLiveEnvFile } from './extract/env.mjs';
 import { languageOf } from './extract/text.mjs';
 
+// Test shapes. docs/SPEC.md §4A row D4. Anchored to a whole path segment or a whole filename part, so
+// `latest.mjs`, `contest.mjs` and `attestation.py` are not tests. `specs/` is deliberately absent:
+// `specs/openapi.mjs` is a schema, and only the singular `spec/` is a test convention.
+const TEST_DIRS = new Set(['test', 'tests', '__tests__', 'spec', 'testing']);
+const TEST_FILENAMES = [
+  /\.test\.[a-z]+$/i,
+  /\.spec\.[a-z]+$/i,
+  /^test_[^/]*\.py$/i,
+  /_test\.py$/i,
+];
+
+export function isTestPath(path) {
+  const segments = path.split('/');
+  if (segments.slice(0, -1).some((segment) => TEST_DIRS.has(segment))) return true;
+  const base = segments[segments.length - 1];
+  return TEST_FILENAMES.some((pattern) => pattern.test(base));
+}
+
 const WORKFLOW = /(?:^|\/)\.github\/workflows\/[^/]+\.(?:yml|yaml)$/;
 const PLIST = /\.plist$/;
 

@@ -166,7 +166,7 @@ system-map reconcile  fixtures/demo-repo
   read:
     code       fixtures/demo-repo
     system.md  .vibecodepm/system.md  (1544 bytes)
-    baseline   baseline.json  (10427 bytes)
+    baseline   baseline.json  (10466 bytes)
 
   12 findings, every one cited:
       1  pieces the map does not name

@@ -6,7 +6,7 @@
 // part of the scan: a timestamp inside the scan would make every diff dirty and the baseline
 // worthless as a reference point.
 
-import { readRepo } from './walk.mjs';
+import { readRepo, isTestPath } from './walk.mjs';
 import { resolveEdges } from './resolve.mjs';
 import { languageOf } from './extract/text.mjs';
 import { extractEdges } from './extract/edges.mjs';
@@ -40,11 +40,12 @@ function dedupeByName(entries) {
   return [...first.values()].sort(byCite);
 }
 
-export function scanRepo(root) {
+export function scanRepo(root, { includeTests = false } = {}) {
   const { files, contents, gaps: readGaps } = readRepo(root);
   const fileSet = new Set(files);
 
   const modules = [];
+  const testFiles = [];
   const rawEdges = [];
   const manifests = [];
   const env = [];
@@ -57,12 +58,19 @@ export function scanRepo(root) {
 
   for (const path of files) {
     const language = languageOf(path);
-    // A module is a code file, whether or not we could open it. The file existing is a fact about
-    // the repo; failing to read it is a separate, already-reported gap.
-    if (language !== null) modules.push({ path, language, cite: `${path}:1` });
+
+    // docs/SPEC.md §4A row D4. A test file is part of the repository and not part of the system: it is
+    // counted, so "excluded" never reads as "unread", but it is not a piece, it has no blast radius,
+    // and a variable or a route that appears ONLY in a test is not a door the system opens. On one
+    // dogfood repo tests were 48 of 80 modules, and two of another's three "environment variables"
+    // were PATH read inside a test's env allowlist.
+    const isTest = language !== null && !includeTests && isTestPath(path);
+    if (isTest) testFiles.push(path);
+
+    if (language !== null && !isTest) modules.push({ path, language, cite: `${path}:1` });
 
     const text = contents.get(path);
-    if (text === undefined) continue;
+    if (text === undefined || isTest) continue;
 
     if (isManifestPath(path)) {
       const { manifest, gaps: manifestGaps } = extractManifest(path, text);
@@ -94,7 +102,9 @@ export function scanRepo(root) {
       path: '.',
       line: 1,
       cite: '.',
-      detail: 'no source file was found under the scanned path, so nothing here can be judged against a declared design',
+      detail: testFiles.length > 0
+        ? `the only source files found were ${testFiles.length} test file(s), which are excluded from the system by default, so there is nothing here to judge against a declared design. Pass --include-tests if the tests ARE the subject`
+        : 'no source file was found under the scanned path, so nothing here can be judged against a declared design',
     });
   }
 
@@ -112,6 +122,7 @@ export function scanRepo(root) {
     schedules: schedules.sort(byCite),
     observability: observability.sort(byCite),
     authChecks: dedupeByName(authChecks),
+    testFiles: testFiles.sort(),
     gaps: gaps.sort((a, b) => a.code.localeCompare(b.code) || String(a.cite).localeCompare(String(b.cite))),
   };
 
@@ -126,6 +137,7 @@ export function scanRepo(root) {
     schedules: baseline.schedules.length,
     observability: baseline.observability.length,
     authChecks: baseline.authChecks.length,
+    testFiles: baseline.testFiles.length,
     gaps: baseline.gaps.length,
     blockingGaps: baseline.gaps.filter((gap) => gap.tier === 'BLOCKING').length,
   };
