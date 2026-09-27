@@ -251,6 +251,27 @@ test('a .env.example contributes its keys, and a real .env is never opened', () 
   });
 });
 
+test('an env var read in three files is ONE entry, at its first citation, listing the others', () => {
+  // Found by building the demo fixture: the same key appeared once per file, so the report listed
+  // KITELINE_WEBHOOK_SECRET twice and a reader would count two secrets where there is one.
+  withRepo({
+    '.env.example': 'SK_EXAMPLE=\n',
+    'src/a.mjs': 'process.env.SK_EXAMPLE;\n',
+    'src/b.mjs': '\nprocess.env.SK_EXAMPLE;\n',
+  }, (root) => {
+    const { env } = scanRepo(root);
+    assert.deepEqual(env.map((entry) => entry.name), ['SK_EXAMPLE']);
+    assert.equal(env[0].cite, '.env.example:1');
+    assert.deepEqual(env[0].alsoAt, ['src/a.mjs:1', 'src/b.mjs:2']);
+  });
+});
+
+test('two different env vars are still two entries', () => {
+  withRepo({ 'src/a.mjs': 'process.env.A;\nprocess.env.B;\n' }, (root) => {
+    assert.deepEqual(scanRepo(root).env.map((entry) => entry.name), ['A', 'B']);
+  });
+});
+
 test('a queue client is reachable through its category, which is how the report finds it', () => {
   withRepo({ 'src/q.mjs': "import { Queue } from 'bullmq';\n" }, (root) => {
     const [client] = scanRepo(root).clients;

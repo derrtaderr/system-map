@@ -60,12 +60,18 @@ function edgeEnd(value) {
   return stripMarkup(value.split(/[,;(]|\.\s|\.$/)[0]);
 }
 
+// Every backticked token in a run of lines, WITH the line it was written on. The line is what lets a
+// finding about the declared document cite the declared document, rather than rendering "(no
+// citation)" in a report whose whole claim is that every line cites its source.
 function backtickedIn(lines) {
-  const found = [];
+  const first = new Map();
   for (const line of lines) {
-    for (const match of line.text.matchAll(backticked())) found.push(match[1].trim());
+    for (const match of line.text.matchAll(backticked())) {
+      const name = match[1].trim();
+      if (!first.has(name)) first.set(name, line.n);
+    }
   }
-  return [...new Set(found)].sort();
+  return [...first.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, n]) => ({ name, line: n }));
 }
 
 function classify(heading) {
@@ -149,19 +155,23 @@ export function parseDeclared(text) {
   const { pieces, edges, unparsed } = readMap(sections.map);
 
   const allLines = (text ?? '').split('\n').map((value, index) => ({ n: index + 1, text: value }));
-  const allBackticked = backtickedIn(allLines);
+  const allBackticked = backtickedIn(allLines).map((entry) => entry.name);
 
   const inSection = (key) => (sections[key] === null ? [] : backtickedIn(sections[key].lines));
 
+  // `names` stays a list of strings, which is what every caller reads. `cited` carries the same
+  // entries with the line each one was written on, for the findings that have to point back here.
+  const shape = (entries) => ({ names: entries.map((entry) => entry.name), cited: entries });
+
   const doorsTicked = inSection('doors');
   const doors = {
-    envNames: doorsTicked.filter((value) => ENV_SHAPED.test(value)),
-    names: doorsTicked,
+    ...shape(doorsTicked),
+    envNames: doorsTicked.filter((entry) => ENV_SHAPED.test(entry.name)).map((entry) => entry.name),
   };
 
-  const bill = { names: inSection('bill') };
-  const watch = { names: inSection('watch') };
-  const state = { names: inSection('state') };
+  const bill = shape(inSection('bill'));
+  const watch = shape(inSection('watch'));
+  const state = shape(inSection('state'));
 
   const found = SECTION_KEYS.filter((key) => sections[key] !== null);
   const hasContent = found.some((key) => sections[key].lines.some((line) => line.text.trim() !== ''));

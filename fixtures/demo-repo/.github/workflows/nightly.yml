@@ -1,0 +1,9 @@
+name: nightly sweep
+on:
+  schedule:
+    - cron: '0 9 * * *'
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python worker/run.py
