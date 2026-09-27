@@ -148,6 +148,17 @@ Named here so a stranger is not surprised, and so a gap is never mistaken for an
 - **Queue edges.** A producer and a consumer that meet in Redis share no import. The queue client is
   reported; the edge cannot be.
 - **Any language that is not Node or Python.** A Go service in the same monorepo is invisible.
+- **An environment injected as a parameter.** A module written as `function f({ env = process.env })`
+  and read as `env.MY_KEY` hides every one of its variables from the `process.env.X` rule. Found by
+  dogfooding: two repos scanned during this lane do exactly this, and the scan reported one
+  environment variable between them where there are several. Widening the rule to any `env.X` would
+  match every object somebody happened to call `env`, which trades a quiet miss for a noisy wrong
+  answer, so the miss is named here instead. When a draft's question 3 looks emptier than you expect,
+  this is the first thing to check.
+- **Test files are counted as part of the system.** A repo with 48 test modules and 23 source modules
+  reports `test` as a piece, gives it a blast radius, and lets it dominate the map. That is a scoping
+  decision phase 1 did not make, and it is the first open question in this repo's backlog rather than
+  a limitation anybody chose.
 
 ## The two tiers, and why the tiering is load bearing
 

@@ -13,7 +13,7 @@
 // repository read-only by construction, rather than by good intentions.
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { scanRepo, BASELINE_SCHEMA } from './scan.mjs';
 import { deriveDraft } from './derive.mjs';
@@ -195,8 +195,10 @@ function doDerive({ path, flags, now }, log) {
   }
 
   const baseline = scanRepo(root);
-  const repoName = path === '.' ? 'the working directory' : path;
-  write(out, `${deriveDraft(baseline, { now, repoName })}\n`);
+  // Never the argv path. A draft is meant to be committed, and echoing an absolute path would carry a
+  // home directory into the user's repository — the privacy guard's own HOME_PATH rule, broken in the
+  // tool's output instead of in its tree. Found by dogfooding against a repo outside this one.
+  write(out, `${deriveDraft(baseline, { now, repoName: basename(root) })}\n`);
 
   log(`system-map derive  ${path}`);
   log('');
