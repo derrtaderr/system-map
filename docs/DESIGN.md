@@ -161,6 +161,9 @@ Named here so a stranger is not surprised, and so a gap is never mistaken for an
   `importlib.import_module(name)` as `NOTED DYNAMIC_IMPORT_MODULE`.
 - **A file over 2 MB**, skipped with `NOTED FILE_TOO_LARGE`: a source file that big is generated,
   minified or vendored, whatever directory it sits in.
+- **A symlink to a directory this scan already walked**, skipped with `NOTED SYMLINK_LOOP`. Every
+  directory is walked once, by real path; a link back to a parent used to be descended until ELOOP
+  (4 modules became 66; ship-check N2).
 - **A symlink resolving outside the repo**, skipped with `NOTED SYMLINK_OUTSIDE_REPO`. A file outside the
   repository is not part of it, whatever a link inside says. A symlink within the repo is followed.
 - **Reflection, runtime registries, monkey patching.** A piece wired up at runtime looks like a piece

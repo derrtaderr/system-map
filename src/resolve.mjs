@@ -67,7 +67,7 @@ function candidatesForPython(specifier, from) {
 
 export function resolveEdge(edge, fileSet) {
   const { specifier, kind, from } = edge;
-  const python = kind === 'python-import';
+  const python = kind === 'python-import' || kind === 'python-import-type';
   const relative = python ? specifier.startsWith('.') : specifier.startsWith('.');
 
   if (!relative && !python && isBuiltin(specifier)) {
