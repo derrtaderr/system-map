@@ -67,6 +67,12 @@ function theMap(scan) {
     lines.push(cited(`${pieceOf(host.path ?? '')} → \`${host.host}\`, over HTTP via ${host.via}`, host.cite));
   }
 
+  // docs/SPEC.md §4A row D2. A process boundary is a boundary, and it appears in no manifest, which is
+  // exactly why the import graph misses it.
+  for (const shell of scan.shells ?? []) {
+    lines.push(cited(`${pieceOf(shell.path ?? '')} shells out to \`${shell.target}\`, via ${shell.call}`, shell.cite));
+  }
+
   if (internal.size === 0 && scan.clients.length === 0 && scan.hosts.length === 0) {
     lines.push(unknown('no edge between pieces was found. Either the pieces genuinely do not talk, or they talk through something text extraction cannot see, such as a queue or a shared database'));
   }
@@ -92,8 +98,15 @@ function whereStateLives(scan) {
     lines.push(cited(`\`${entry.name}\` points at a store this code connects to`, entry.cite));
   }
 
+  // docs/SPEC.md §4A row D1, and §3F promised it from the first commit. Every dogfood repo keeps state
+  // on disk, and every draft used to say "no storage client was found".
+  for (const write of scan.writes ?? []) {
+    const more = write.alsoWrites > 0 ? `, and ${write.alsoWrites} more write${write.alsoWrites === 1 ? '' : 's'} in this module` : '';
+    lines.push(cited(`state lives in local files: \`${write.target}\`, written with ${write.call}${more}`, write.cite));
+  }
+
   if (lines.length === 0) {
-    lines.push(unknown('no database or storage client was found, so either this system keeps nothing, or it keeps it somewhere text extraction cannot see, such as a local file or a service reached by plain HTTP'));
+    lines.push(unknown('no database, storage client or local file write was found, so either this system keeps nothing, or it keeps it somewhere text extraction cannot see, such as a service reached by plain HTTP'));
   }
 
   // Straight from the architect skill, and it can never be answered by reading a repo.
@@ -147,7 +160,13 @@ function whatBills(scan) {
     lines.push(cited(`\`${host.host}\` is called over HTTP via ${host.via}, and whether it meters is not something this repo records`, host.cite));
   }
 
-  if (metered.length === 0 && scan.hosts.length === 0) {
+  // A shelled-out command is not billed by us, but it is rate-limited by somebody, and question 4 is
+  // where a reader looks for "what stops working when we do too much of it".
+  for (const shell of scan.shells ?? []) {
+    lines.push(cited(`\`${shell.target}\` is run as a subprocess, so whatever it reaches is metered by that system's limits rather than billed here`, shell.cite));
+  }
+
+  if (metered.length === 0 && scan.hosts.length === 0 && (scan.shells ?? []).length === 0) {
     lines.push(unknown('nothing in this repo matched a metered client or an external host, so as far as the scan can tell nothing here bills per use. A vendor the registry does not know would look exactly the same'));
   }
 

@@ -180,6 +180,54 @@ function maskPython(text) {
   return out.join('');
 }
 
+// Comments AND string contents blanked, keeping the quotes so a specifier-shaped match still fails
+// rather than shifting. For the extractors whose tokens must come from code and never from prose: an
+// env read documented in a help string is not an env read (M5), and neither is one in a template
+// literal. The extractors that NEED string contents — import specifiers, route paths, hosts, cron
+// literals — keep using maskComments.
+export function maskCommentsAndStrings(text, language) {
+  const masked = maskComments(text, language);
+  const out = [];
+  let quote = '';
+
+  for (let index = 0; index < masked.length; index += 1) {
+    const char = masked[index];
+
+    if (quote === '') {
+      if (char === "'" || char === '"' || char === '`') {
+        quote = char;
+        out.push(char);
+        continue;
+      }
+      out.push(char);
+      continue;
+    }
+
+    if (char === '\\') {
+      out.push(' ');
+      if (masked[index + 1] !== undefined) {
+        out.push(masked[index + 1] === '\n' ? '\n' : ' ');
+        index += 1;
+      }
+      continue;
+    }
+    if (char === quote) {
+      quote = '';
+      out.push(char);
+      continue;
+    }
+    if (char === '\n') {
+      // An unterminated quote must not swallow the file; a newline ends a single or double quoted one.
+      if (quote !== '`') quote = '';
+      out.push('\n');
+      continue;
+    }
+    out.push(' ');
+  }
+
+  return out.join('');
+}
+
 export function maskComments(text, language) {
   if (language === 'python') return maskPython(text);
   if (language === 'node') return maskNode(text);

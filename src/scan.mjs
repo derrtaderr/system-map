@@ -17,6 +17,8 @@ import { extractObservability } from './extract/observability.mjs';
 import { extractAuthChecks } from './extract/auth.mjs';
 import { extractHosts, clientsFromEdges } from './extract/clients.mjs';
 import { extractManifest, isManifestPath } from './extract/manifests.mjs';
+import { extractWrites } from './extract/writes.mjs';
+import { extractShellOuts } from './extract/shell.mjs';
 
 export const BASELINE_SCHEMA = 'system-map/baseline@1';
 
@@ -54,6 +56,8 @@ export function scanRepo(root, { includeTests = false } = {}) {
   const schedules = [];
   const observability = [];
   const authChecks = [];
+  const writes = [];
+  const shells = [];
   const gaps = [...readGaps];
 
   for (const path of files) {
@@ -88,6 +92,8 @@ export function scanRepo(root, { includeTests = false } = {}) {
     schedules.push(...extractSchedules(path, text).schedules);
     observability.push(...extractObservability(path, text).surfaces);
     authChecks.push(...extractAuthChecks(path, text).checks);
+    writes.push(...extractWrites(path, text, { includeTests }).writes);
+    shells.push(...extractShellOuts(path, text, { includeTests }).shells);
   }
 
   const resolved = resolveEdges(rawEdges, fileSet);
@@ -122,6 +128,8 @@ export function scanRepo(root, { includeTests = false } = {}) {
     schedules: schedules.sort(byCite),
     observability: observability.sort(byCite),
     authChecks: dedupeByName(authChecks),
+    writes: writes.sort(byCite),
+    shells: shells.sort(byCite),
     testFiles: testFiles.sort(),
     gaps: gaps.sort((a, b) => a.code.localeCompare(b.code) || String(a.cite).localeCompare(String(b.cite))),
   };
@@ -137,6 +145,8 @@ export function scanRepo(root, { includeTests = false } = {}) {
     schedules: baseline.schedules.length,
     observability: baseline.observability.length,
     authChecks: baseline.authChecks.length,
+    writes: baseline.writes.length,
+    shells: baseline.shells.length,
     testFiles: baseline.testFiles.length,
     gaps: baseline.gaps.length,
     blockingGaps: baseline.gaps.filter((gap) => gap.tier === 'BLOCKING').length,

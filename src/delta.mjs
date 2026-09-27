@@ -13,7 +13,7 @@
 // Manifests are deliberately absent. A dependency appearing in package.json without an import is
 // a packaging change, not an architectural one, and the import it eventually grows shows up here as
 // an edge and a client on the run that introduces it.
-export const DELTA_KINDS = ['modules', 'edges', 'env', 'routes', 'clients', 'hosts', 'schedules', 'observability', 'authChecks'];
+export const DELTA_KINDS = ['modules', 'edges', 'env', 'routes', 'clients', 'hosts', 'schedules', 'observability', 'authChecks', 'writes', 'shells'];
 
 // The identity of each kind. Every one of these deliberately excludes the citation.
 const IDENTITY = {
@@ -26,6 +26,8 @@ const IDENTITY = {
   schedules: (entry) => `${entry.kind} ${entry.detail}`,
   observability: (entry) => `${entry.kind} ${entry.name}`,
   authChecks: (entry) => entry.name,
+  writes: (entry) => `${entry.call} ${entry.target}`,
+  shells: (entry) => entry.target,
 };
 
 function list(baseline, kind) {

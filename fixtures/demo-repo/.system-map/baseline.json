@@ -429,6 +429,8 @@
       "alsoAt": []
     }
   ],
+  "writes": [],
+  "shells": [],
   "testFiles": [],
   "gaps": [
     {
@@ -451,6 +453,8 @@
     "schedules": 3,
     "observability": 6,
     "authChecks": 3,
+    "writes": 0,
+    "shells": 0,
     "testFiles": 0,
     "gaps": 1,
     "blockingGaps": 0
