@@ -225,7 +225,7 @@ function unpricedClients(scan, declared) {
     .map((client) => ({
       id: client.name,
       cite: client.cite,
-      detail: `${client.note}, and the bill section does not price it`,
+      detail: `the bill section does not price it — registry: ${client.note}`,
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -273,6 +273,14 @@ function driftFindings(delta) {
   const findings = [];
 
   for (const kind of DELTA_KINDS) {
+    for (const entry of delta[kind].renamed ?? []) {
+      findings.push({
+        id: `${kind} ${entry.id}`,
+        cite: entry.cite,
+        detail: 'the same content is at a different path, so this is one move rather than an add and a remove',
+      });
+    }
+
     for (const [direction, entries] of [['added', delta[kind].added], ['removed', delta[kind].removed]]) {
       for (const entry of entries) {
         findings.push({

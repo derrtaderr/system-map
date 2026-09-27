@@ -4,26 +4,31 @@
     {
       "path": "notify/slack.mjs",
       "language": "node",
+      "contentHash": "b7dd26f4d3cb",
       "cite": "notify/slack.mjs:1"
     },
     {
       "path": "src/api.mjs",
       "language": "node",
+      "contentHash": "25c815a1297b",
       "cite": "src/api.mjs:1"
     },
     {
       "path": "store/db.mjs",
       "language": "node",
+      "contentHash": "59b106f5636f",
       "cite": "store/db.mjs:1"
     },
     {
       "path": "worker/rules.py",
       "language": "python",
+      "contentHash": "b31c389ce188",
       "cite": "worker/rules.py:1"
     },
     {
       "path": "worker/run.py",
       "language": "python",
+      "contentHash": "95b879f5d948",
       "cite": "worker/run.py:1"
     }
   ],

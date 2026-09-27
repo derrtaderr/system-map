@@ -98,16 +98,57 @@ function nodeEdges(path, masked) {
   return { edges, gaps };
 }
 
+// A block whose imports only exist for a type checker. Node's `import type` is already labelled; this is
+// the Python equivalent, and it matters for blast radius because nothing imports it at runtime.
+function typeCheckingBlock(lines) {
+  const typeOnly = new Set();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^(\s*)if\s+TYPE_CHECKING\s*:/.test(lines[index])) continue;
+    const indent = /^(\s*)/.exec(lines[index])[1].length;
+
+    for (let inner = index + 1; inner < lines.length; inner += 1) {
+      if (lines[inner].trim() === '') continue;
+      const innerIndent = /^(\s*)/.exec(lines[inner])[1].length;
+      if (innerIndent <= indent) break;
+      typeOnly.add(inner + 1);
+    }
+  }
+
+  return typeOnly;
+}
+
 function pythonEdges(path, masked) {
   const edges = [];
+  const gaps = [];
   const lines = masked.split('\n');
+  const typeOnlyLines = typeCheckingBlock(lines);
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
 
+    // SPEC §3C: a dynamic import is NOTED, never dropped. This one was dropped entirely.
+    const dynamic = /\bimportlib\.import_module\s*\(\s*(?:(['"])([^'"\n]+)\1)?/.exec(line);
+    if (dynamic !== null) {
+      if (dynamic[2] !== undefined) {
+        edges.push({ from: path, specifier: dynamic[2], kind: 'python-import', line: index + 1 });
+      } else {
+        gaps.push({
+          tier: 'NOTED',
+          code: 'DYNAMIC_IMPORT_MODULE',
+          path,
+          line: index + 1,
+          detail: 'importlib.import_module is called with a computed name, so the edge it creates cannot be read from the text',
+        });
+      }
+      continue;
+    }
+
+    const kind = typeOnlyLines.has(index + 1) ? 'python-import-type' : 'python-import';
+
     const from = /^\s*from\s+(\.*[A-Za-z0-9_.]*)\s+import\b/.exec(line);
     if (from !== null) {
-      if (from[1] !== '__future__') edges.push({ from: path, specifier: from[1], kind: 'python-import', line: index + 1 });
+      if (from[1] !== '__future__') edges.push({ from: path, specifier: from[1], kind, line: index + 1 });
       continue;
     }
 
@@ -118,11 +159,11 @@ function pythonEdges(path, masked) {
       const name = part.trim().split(/\s+as\s+/)[0].trim();
       if (name === '' || name === '__future__') continue;
       if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name)) continue;
-      edges.push({ from: path, specifier: name, kind: 'python-import', line: index + 1 });
+      edges.push({ from: path, specifier: name, kind, line: index + 1 });
     }
   }
 
-  return { edges, gaps: [] };
+  return { edges, gaps };
 }
 
 export function extractEdges(path, text) {

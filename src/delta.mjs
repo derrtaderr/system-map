@@ -45,6 +45,53 @@ function index(baseline, kind) {
   return out;
 }
 
+// A rename used to be four rows: module added, module removed, edge added, edge removed. On a report whose
+// entire value is that a reader finishes it, one file moving is one fact. docs/SPEC.md §4A row M9.
+//
+// Content identity is what makes this safe. A path that disappeared and a path that appeared with the SAME
+// content hash, one of each, is a rename. Two files that share content while both still existing is a
+// copy, and a file whose content changed is a genuine add and remove.
+function pairRenames(added, removed) {
+  const renamed = [];
+  const byHash = new Map();
+
+  for (const entry of removed) {
+    const hash = entry.entry.contentHash;
+    if (hash === undefined || hash === null) continue;
+    if (!byHash.has(hash)) byHash.set(hash, []);
+    byHash.get(hash).push(entry);
+  }
+
+  const claimedRemovals = new Set();
+  const survivingAdds = [];
+
+  for (const entry of added) {
+    const hash = entry.entry.contentHash;
+    const candidates = hash === undefined || hash === null ? [] : (byHash.get(hash) ?? []).filter((candidate) => !claimedRemovals.has(candidate.id));
+
+    // Exactly one candidate, or the pairing is a guess.
+    if (candidates.length !== 1) {
+      survivingAdds.push(entry);
+      continue;
+    }
+
+    claimedRemovals.add(candidates[0].id);
+    renamed.push({
+      id: `renamed ${candidates[0].id} → ${entry.id}`,
+      entry: entry.entry,
+      cite: entry.cite ?? candidates[0].cite ?? null,
+      from: candidates[0].id,
+      to: entry.id,
+    });
+  }
+
+  return {
+    renamed: renamed.sort((a, b) => a.id.localeCompare(b.id)),
+    added: survivingAdds,
+    removed: removed.filter((entry) => !claimedRemovals.has(entry.id)),
+  };
+}
+
 export function computeDelta(before, after) {
   const delta = {};
   let count = 0;
@@ -53,18 +100,23 @@ export function computeDelta(before, after) {
     const left = index(before, kind);
     const right = index(after, kind);
 
-    const added = [...right.entries()]
+    const rawAdded = [...right.entries()]
       .filter(([id]) => !left.has(id))
       .map(([id, entry]) => ({ id, entry, cite: entry.cite ?? null }))
       .sort((a, b) => a.id.localeCompare(b.id));
 
-    const removed = [...left.entries()]
+    const rawRemoved = [...left.entries()]
       .filter(([id]) => !right.has(id))
       .map(([id, entry]) => ({ id, entry, cite: entry.cite ?? null }))
       .sort((a, b) => a.id.localeCompare(b.id));
 
-    delta[kind] = { added, removed };
-    count += added.length + removed.length;
+    // Only modules carry a content hash, so only modules can be paired.
+    const { renamed, added, removed } = kind === 'modules'
+      ? pairRenames(rawAdded, rawRemoved)
+      : { renamed: [], added: rawAdded, removed: rawRemoved };
+
+    delta[kind] = { added, removed, renamed };
+    count += added.length + removed.length + renamed.length;
   }
 
   delta.count = count;
