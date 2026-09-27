@@ -13,7 +13,7 @@
 // third option, and test/derive.test.mjs walks the output to enforce it. When the scan found
 // nothing, the honest output is a page of Unknowns, not a page of plausible sentences.
 
-import { pieceOf } from './reconcile.mjs';
+import { piecesOf, pieceResolver } from './pieces.mjs';
 import { ARCHITECT_HEADINGS as HEADINGS, GAP_HEADING, DRAFT_TITLE } from './headings.mjs';
 
 // Re-exported, not redeclared. The parser reads the same table, and that is the whole point of
@@ -27,19 +27,12 @@ const unknown = (text) => `- Unknown: ${text}`;
 const HEALTH_ROUTE = /(health|healthz|livez|readyz|ping|status)\b/i;
 const CONNECTION_ENV = /DATABASE|_DSN|CONNECTION|POSTGRES|MYSQL|MONGO|REDIS|SUPABASE|SQL|_URI$|BUCKET|S3_/i;
 
-function piecesOf(scan) {
-  const pieces = new Map();
-  for (const module of scan.modules) {
-    const piece = pieceOf(module.path);
-    if (!pieces.has(piece)) pieces.set(piece, []);
-    pieces.get(piece).push(module.path);
-  }
-  return new Map([...pieces.entries()].sort((a, b) => a[0].localeCompare(b[0])));
-}
+
 
 function theMap(scan) {
   const lines = [];
   const pieces = piecesOf(scan);
+  const pieceOf = pieceResolver(scan);
 
   if (pieces.size === 0) {
     return [unknown('no source file was found under this path, so there is no map to draw. Either the code is somewhere else or the scan was pointed at the wrong directory')];
@@ -76,6 +69,13 @@ function theMap(scan) {
 
   if (internal.size === 0 && scan.clients.length === 0 && scan.hosts.length === 0) {
     lines.push(unknown('no edge between pieces was found. Either the pieces genuinely do not talk, or they talk through something text extraction cannot see, such as a queue or a shared database'));
+  }
+
+  // docs/SPEC.md §4A row D4. Counted, named, and not a piece. Silence here would read as a repo with
+  // no tests, which is a different and much worse claim.
+  const tests = scan.testFiles ?? [];
+  if (tests.length > 0) {
+    lines.push(cited(`tests: ${tests.length} files, excluded from the map (\`--include-tests\` to include)`, `${tests[0]}:1`));
   }
 
   return lines;
@@ -192,6 +192,7 @@ function howYouFindOut(scan) {
 
 function blastRadius(scan) {
   const pieces = piecesOf(scan);
+  const pieceOf = pieceResolver(scan);
   if (pieces.size === 0) return [unknown('with no module found, nothing can be said about what depends on what')];
 
   const dependents = new Map([...pieces.keys()].map((piece) => [piece, new Map()]));

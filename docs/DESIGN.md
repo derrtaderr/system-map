@@ -155,10 +155,12 @@ Named here so a stranger is not surprised, and so a gap is never mistaken for an
   match every object somebody happened to call `env`, which trades a quiet miss for a noisy wrong
   answer, so the miss is named here instead. When a draft's question 3 looks emptier than you expect,
   this is the first thing to check.
-- **Test files are counted as part of the system.** A repo with 48 test modules and 23 source modules
-  reports `test` as a piece, gives it a blast radius, and lets it dominate the map. That is a scoping
-  decision phase 1 did not make, and it is the first open question in this repo's backlog rather than
-  a limitation anybody chose.
+- **Test files are excluded from the system by default** (fix wave 1, SPEC §4A row D4). They are
+  counted and named in section 1, so "excluded" never reads as "unread", but they are not pieces, have
+  no blast radius, and a variable or route that appears only in a test is not reported.
+  `--include-tests` puts them back. The shapes: `test/`, `tests/`, `__tests__/`, `spec/`, `testing/`,
+  `*.test.*`, `*.spec.*`, `test_*.py`, `*_test.py`. `specs/` is deliberately not one, because
+  `specs/openapi.mjs` is a schema.
 
 ## The two tiers, and why the tiering is load bearing
 
@@ -190,6 +192,19 @@ report section 3 exists to catch.
 
 Anything it could not read goes in the report's last section, under "Declared, but not found or not
 understood". A document it understood nothing of is `SYSTEM_MD_UNPARSEABLE`, which is blocking.
+
+## What a piece is
+
+A piece is the unit the map names, the unit blast radius is measured in, and the unit report section 1
+reports. It is the top-level directory a module sits in, **except** that a directory containing only
+directories and no files of its own hands its name to its children: `packages/{api,worker,shared}` is
+three pieces, `src/` with files in it is one piece however many subdirectories it also has, and a file
+at the repo root is its own piece.
+
+Descent goes exactly one level. Unlimited descent is just the directory tree again, and the whole value
+of a piece is that there are three to five of them. `src/pieces.mjs` holds the rule, and both `derive`
+and `reconcile` read it, because if the two ends disagree about what a piece is the round trip reports
+the tool's own map back as findings.
 
 ## Phase 1 has no boundary rules
 
